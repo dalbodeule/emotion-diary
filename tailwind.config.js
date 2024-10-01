@@ -9,7 +9,11 @@ export default {
     "./error.vue",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        'nanum-pen': ['"Nanum Pen Script"', 'cursive'],
+      }
+    },
   },
   plugins: [],
 }
