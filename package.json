@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@aws-sdk/client-rds-data": "^3.635.0",
+    "@aws-sdk/credential-providers": "^3.658.1",
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.24.0",
     "nuxt": "^3.13.2",

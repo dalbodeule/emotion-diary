@@ -22,6 +22,7 @@ export default defineNuxtConfig({
       profile: process.env.AWS_PROFILE,
       secretArn: process.env.AWS_SECRET,
       resourceArn: process.env.AWS_RESOURCE,
+      database: process.env.AWS_DATABASE,
     },
   },
   modules: ["@nuxtjs/turnstile", "@nuxt/eslint"]
