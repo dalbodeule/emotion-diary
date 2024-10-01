@@ -12,6 +12,7 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
+    "@aws-amplify/cli": "^12.12.6",
     "@nuxt/eslint": "^0.5.1",
     "@nuxtjs/turnstile": "^0.9.3",
     "drizzle-orm": "^0.33.0",

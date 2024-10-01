@@ -4,9 +4,8 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   nitro: {
     preset: 'aws_amplify',
-    serveStatic: true,
-    output: {
-      publicDir: './output/server'
+    awsAmplify: {
+
     }
   },
   css: [
