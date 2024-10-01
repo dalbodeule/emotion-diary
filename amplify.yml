@@ -3,6 +3,7 @@ frontend:
   phases:
     preBuild:
       commands:
+        - npm install 22
         - nvm use 22 && node --version
         - corepack enable && npx --yes npm install
     build:
