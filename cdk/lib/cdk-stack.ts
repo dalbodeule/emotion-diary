@@ -1,5 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
-import { Construct } from 'constructs';
+import type { Construct } from 'constructs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as s3 from 'aws-cdk-lib/aws-s3';
@@ -104,6 +104,73 @@ export class CdkStack extends cdk.Stack {
       ],
       resources: [dbCluster.clusterArn],
     }));
+
+    // Lambda 역할에 필요한 EC2 권한 추가
+    lambdaRole.addToPolicy(new iam.PolicyStatement({
+      actions: [
+        'ec2:CreateNetworkInterface',
+        'ec2:DescribeNetworkInterfaces',
+        'ec2:DeleteNetworkInterface',
+      ],
+      resources: ['*'], // 네트워크 인터페이스는 특정 리소스가 아니므로 "*"로 설정
+    }));
+
+    // Spot Fleet에 필요한 IAM 역할 생성
+    const spotFleetRole = new iam.Role(this, 'SpotFleetRole', {
+      assumedBy: new iam.ServicePrincipal('spotfleet.amazonaws.com'),
+    });
+
+    // 필요한 IAM 정책을 추가
+    spotFleetRole.addManagedPolicy(
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonEC2SpotFleetTaggingRole')
+    );
+
+    const spotInstanceRole = new iam.Role(this, 'SpotInstanceRole', {
+      assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
+    });
+
+    const instanceProfile = new iam.CfnInstanceProfile(this, 'InstanceProfile', {
+      roles: [spotInstanceRole.roleName],
+    });
+
+    // Bastion Host 보안 그룹
+    const bastionSecurityGroup = new ec2.SecurityGroup(this, 'BastionSecurityGroup', {
+      vpc,
+      allowAllOutbound: true,
+    });
+    bastionSecurityGroup.addIngressRule(
+        ec2.Peer.ipv4("211.217.79.151/32"),
+        ec2.Port.tcp(22),
+        "Allow SSH Access from Local machine"
+    )
+
+    // 스팟 인스턴스 요청 생성
+    const bastionHost = new ec2.CfnSpotFleet(this, 'SpotFleet', {
+      spotFleetRequestConfigData: {
+        iamFleetRole: spotFleetRole.roleArn, // 올바른 ARN으로 설정
+        allocationStrategy: 'lowestPrice',
+        spotPrice: '0.01', // 최대 스팟 인스턴스 가격 (미국 달러 기준)
+        targetCapacity: 1, // 필요한 인스턴스의 수
+        launchSpecifications: [
+          {
+            instanceType: 't3.nano', // 인스턴스 유형
+            imageId: new ec2.AmazonLinuxImage().getImage(this).imageId, // Amazon Linux 이미지 사용
+            keyName: 'macbook', // SSH 키 페어 이름
+            networkInterfaces: [
+              {
+                subnetId: vpc.publicSubnets[0].subnetId,
+                associatePublicIpAddress: true,
+                deviceIndex: 0,
+                groups: [bastionSecurityGroup.securityGroupId]
+              },
+            ],
+            iamInstanceProfile: {
+              arn: instanceProfile.attrArn, // 생성한 인스턴스 프로파일의 ARN 사용
+            },
+          },
+        ],
+      },
+    });
 
     // Lambda 함수 생성
     const nuxtLambda = new lambda.Function(this, 'emoti-lambda', {

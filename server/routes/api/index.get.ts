@@ -1,10 +1,9 @@
-import {useDrizzle} from "~/server/utils/useDrizzle";
-import {sql} from "drizzle-orm";
+import {useDrizzle} from "~/server/utils/useDrizzle"
 
 export default defineEventHandler(async(_event) => {
     const db = await useDrizzle()
 
-    console.log(await db.execute(sql`SELECT * FROM pg_catalog.pg_tables`))
+    console.log(await db.query.users.findFirst())
 
     return 'Hello World'
 })
