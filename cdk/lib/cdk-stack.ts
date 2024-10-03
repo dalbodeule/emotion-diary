@@ -11,6 +11,7 @@ import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as route53targets from 'aws-cdk-lib/aws-route53-targets';
 import * as certificatemanager from 'aws-cdk-lib/aws-certificatemanager';
 import * as rds from 'aws-cdk-lib/aws-rds';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as path from 'path';
 import { Peer, Port, SecurityGroup, SubnetType } from "aws-cdk-lib/aws-ec2";
 import { ClusterInstance } from "aws-cdk-lib/aws-rds";
@@ -44,6 +45,66 @@ export class CdkStack extends cdk.Stack {
       ],
     });
 
+    // create a security group for aurora db
+    const dbSecurityGroup = new SecurityGroup(this, 'DbSecurityGroup', {
+      vpc: vpc, // use the vpc created above
+      allowAllOutbound: true // allow outbound traffic to anywhere
+    });
+
+    // allow inbound traffic from anywhere to the db
+    dbSecurityGroup.addIngressRule(
+        Peer.anyIpv4(),
+        Port.tcp(5432), // allow inbound traffic on port 5432 (postgres)
+        'allow inbound traffic from anywhere to the db on port 5432'
+    );
+
+    const dbCluster = new rds.DatabaseCluster(this, 'Cluster', {
+      engine: rds.DatabaseClusterEngine.auroraPostgres({
+        version: rds.AuroraPostgresEngineVersion.VER_15_7, // PostgreSQL 버전 선택
+      }),
+      // capacity applies to all serverless instances in the cluster
+      serverlessV2MaxCapacity: 4,
+      serverlessV2MinCapacity: 0.5,
+      writer: ClusterInstance.serverlessV2('writer', {
+        publiclyAccessible: true
+      }),
+      readers: [
+        // puts it in promition tier 0-1
+        ClusterInstance.serverlessV2('reader1', { scaleWithWriter: true }),
+      ],
+      port: 5432, // PostgreSQL 포트
+      securityGroups: [dbSecurityGroup], // 보안 그룹 설정
+      vpc: vpc,
+      vpcSubnets: {
+        subnetType: SubnetType.PUBLIC, // 프라이빗 서브넷에 배치
+      },
+      enableDataApi: true, // Data API 사용 (필요한 경우)
+      defaultDatabaseName: 'emoti', // 기본 데이터베이스 이름
+    })
+
+    // Lambda에 사용될 IAM 역할 생성 또는 기존 역할 가져오기
+    const lambdaRole = new iam.Role(this, 'LambdaRole', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+    });
+
+    // Secrets Manager에 대한 권한 추가
+    lambdaRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [dbCluster.secret?.secretArn ?? ''],
+    }));
+
+    // RDS Data API에 필요한 권한 추가
+    lambdaRole.addToPolicy(new iam.PolicyStatement({
+      actions: [
+        'rds-data:ExecuteStatement',
+        'rds-data:BatchExecuteStatement',
+        'rds-data:BeginTransaction',
+        'rds-data:CommitTransaction',
+        'rds-data:RollbackTransaction',
+      ],
+      resources: [dbCluster.clusterArn],
+    }));
+
     // Lambda 함수 생성
     const nuxtLambda = new lambda.Function(this, 'emoti-lambda', {
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -53,7 +114,12 @@ export class CdkStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
       environment: {
         NODE_ENV: 'production',
+        NUXT_AWS_DATABASE: 'emoti',
+        NUXT_AWS_REGION: this.region,
+        NUXT_AWS_RESOURCE_ARN: dbCluster.clusterArn,
+        NUXT_AWS_SECRET_ARN: dbCluster.secret?.secretArn ?? ''
       },
+      role: lambdaRole,
       vpc, // VPC에 Lambda 연결
     });
 
@@ -112,43 +178,6 @@ export class CdkStack extends cdk.Stack {
       zone,
       target: route53.RecordTarget.fromAlias(new route53targets.CloudFrontTarget(distribution)),
     });
-
-    // create a security group for aurora db
-    const dbSecurityGroup = new SecurityGroup(this, 'DbSecurityGroup', {
-      vpc: vpc, // use the vpc created above
-      allowAllOutbound: true // allow outbound traffic to anywhere
-    });
-
-    // allow inbound traffic from anywhere to the db
-    dbSecurityGroup.addIngressRule(
-        Peer.anyIpv4(),
-        Port.tcp(5432), // allow inbound traffic on port 5432 (postgres)
-        'allow inbound traffic from anywhere to the db on port 5432'
-    );
-
-    const dbCluster = new rds.DatabaseCluster(this, 'Cluster', {
-      engine: rds.DatabaseClusterEngine.auroraPostgres({
-        version: rds.AuroraPostgresEngineVersion.VER_15_7, // PostgreSQL 버전 선택
-      }),
-      // capacity applies to all serverless instances in the cluster
-      serverlessV2MaxCapacity: 4,
-      serverlessV2MinCapacity: 0.5,
-      writer: ClusterInstance.serverlessV2('writer', {
-        publiclyAccessible: true
-      }),
-      readers: [
-        // puts it in promition tier 0-1
-        ClusterInstance.serverlessV2('reader1', { scaleWithWriter: true }),
-      ],
-      port: 5432, // PostgreSQL 포트
-      securityGroups: [dbSecurityGroup], // 보안 그룹 설정
-      vpc: vpc,
-      vpcSubnets: {
-        subnetType: SubnetType.PUBLIC, // 프라이빗 서브넷에 배치
-      },
-      enableDataApi: true, // Data API 사용 (필요한 경우)
-      defaultDatabaseName: 'emoti', // 기본 데이터베이스 이름
-    })
 
     // 데이터베이스 엔드포인트 및 인증 정보 출력
     new cdk.CfnOutput(this, 'DbEndpoint', {

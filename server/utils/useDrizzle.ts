@@ -21,12 +21,11 @@ export async function useDrizzle() {
             password: config.db.password,
             database: config.db.database,
         })
-
-        return drizzle(pool)
+        const client = await pool.connect()
+        return drizzle(client) // 로컬 환경에서 사용
     } else {
         // 서버 환경: AWS RDS Data API 사용
         const rdsClient = new RDSDataClient({
-            credentials: fromIni({ profile: config.aws.profile }),
             region: config.aws.region,
         });
 
