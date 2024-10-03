@@ -1,7 +1,6 @@
 import { drizzle } from 'drizzle-orm/node-postgres'; // 일반 Node.js 용 pg
 import { drizzle as awsDrizzle } from 'drizzle-orm/aws-data-api/pg'; // AWS Data API용
 import { RDSDataClient } from '@aws-sdk/client-rds-data';
-import { fromIni } from '@aws-sdk/credential-providers';
 import pg from "pg";
 
 const config = useRuntimeConfig()
