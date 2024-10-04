@@ -1,0 +1,192 @@
+// Import Bulma's default variables
+@import "bulma/sass/utilities/initial-variables";
+
+// 색상 및 테마 정의
+$primary: #4a90e2; // 파랑색 - 링크 등 강조 요소에 사용
+$background-paper: #fdf6e3; // 종이 느낌 배경색
+$card-background-paper: #fffbe6; // 종이 카드 배경 (조금 더 어두운 종이 느낌)
+$text-color-pen: #4a4a4a; // 펜 글씨 느낌의 텍스트 색상 (진한 회색)
+$border-color-pen: #d3b6aa; // 연한 갈색 톤으로 부드러운 테두리 효과
+$button-primary-color: #4a4a4a; // 버튼 텍스트 색상 (펜 느낌)
+$button-primary-background-color: #f9d29c; // 펜의 잉크 느낌이 나는 버튼 배경색
+
+// Bulma Override Variables
+$body-background-color: $background-paper;
+$card-background-color: $card-background-paper;
+$box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1); // 종이 카드에 약간의 그림자
+$button-border-radius: 8px; // 버튼 테두리를 부드럽게
+$border-radius: 10px; // 카드 및 박스의 테두리를 둥글게
+$navbar-background-color: lighten($primary, 20%); // 약간 연한 파랑색
+
+// Define custom colors for buttons
+$yellow-button-color: #ffe08a; // 부드러운 노란색 (로그인용)
+$blue-button-color: #6ec1e4; // 부드러운 파란색 (회원가입용)
+$green-button-color: #a8e6a3; // 부드러운 초록색
+$red-button-color: #f9a1a1; // 부드러운 빨간색
+$purple-button-color: #d3b6ff; // 부드러운 보라색
+
+// Import Bulma base styles and components
+@import "bulma";
+
+// Import Google Fonts
+@import url('https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&family=Homemade+Apple&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Homemade+Apple&display=swap');
+
+.font-nanum-pen {
+  font-family: 'Nanum Pen Script', cursive !important;
+}
+
+// 전체 배경 설정
+body {
+  font-family: 'Nanum Pen Script', cursive; // 손글씨 느낌의 폰트 사용
+  color: $text-color-pen;
+  background-color: $background-paper;
+  background-image: url('https://your-image-url.com/paper-texture.png'); // 종이 질감의 배경 이미지
+  background-size: cover;
+  background-repeat: repeat;
+}
+
+// 타이틀 및 헤더에 더 진한 글씨 느낌
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Homemade Apple', 'Nanum Pen Script', cursive; // 더 강조된 손글씨 폰트
+  color: $text-color-pen;
+}
+
+.card {
+  background-color: $card-background-paper;
+  border-radius: $border-radius;
+  box-shadow: $box-shadow;
+  padding: 1.5rem;
+  border: 1px solid $border-color-pen; // 종이 테두리 느낌
+  // background-image: url('https://your-image-url.com/paper-texture-light.png'); // 가벼운 종이 텍스처 배경
+  background-size: cover;
+  background-repeat: repeat;
+
+  .card-content {
+    color: $text-color-pen;
+    line-height: 1.5; // 여백을 넉넉히 줘서 글씨가 편하게 보이도록 함
+  }
+}
+
+.button {
+  font-family: 'Nanum Pen Script', cursive;
+  border-radius: $button-border-radius;
+  border: 2px solid darken($button-primary-background-color, 10%);
+  background-color: $button-primary-background-color;
+  color: $button-primary-color;
+  transition: background-color 0.3s;
+
+  &:hover {
+    background-color: lighten($button-primary-background-color, 10%);
+  }
+}
+
+
+// Custom button styles
+.button.is-yellow {
+  background-color: $yellow-button-color;
+  color: #4a4a4a; // 어두운 회색 텍스트
+  border: none;
+
+  &:hover {
+    background-color: lighten($yellow-button-color, 10%);
+  }
+
+  &:focus {
+    border-color: darken($yellow-button-color, 10%);
+  }
+}
+
+.button.is-blue {
+  background-color: $blue-button-color;
+  color: white; // 흰색 텍스트
+  border: none;
+
+  &:hover {
+    background-color: lighten($blue-button-color, 10%);
+  }
+
+  &:focus {
+    border-color: darken($blue-button-color, 10%);
+  }
+}
+
+.button.is-green {
+  background-color: $green-button-color;
+  color: white; // 흰색 텍스트
+  border: none;
+
+  &:hover {
+    background-color: lighten($green-button-color, 10%);
+  }
+
+  &:focus {
+    border-color: darken($green-button-color, 10%);
+  }
+}
+
+.button.is-red {
+  background-color: $red-button-color;
+  color: white; // 흰색 텍스트
+  border: none;
+
+  &:hover {
+    background-color: lighten($red-button-color, 10%);
+  }
+
+  &:focus {
+    border-color: darken($red-button-color, 10%);
+  }
+}
+
+.button.is-purple {
+  background-color: $purple-button-color;
+  color: white; // 흰색 텍스트
+  border: none;
+
+  &:hover {
+    background-color: lighten($purple-button-color, 10%);
+  }
+
+  &:focus {
+    border-color: darken($purple-button-color, 10%);
+  }
+}
+
+.field {
+  margin-bottom: 1.5rem;
+}
+
+.label {
+  font-family: 'Homemade Apple', cursive;
+  color: $text-color-pen;
+}
+
+.input, .textarea {
+  border-radius: $button-border-radius;
+  border: 1px solid $border-color-pen;
+  background-color: lighten($card-background-paper, 5%);
+  background-image: url('https://your-image-url.com/paper-texture-light.png'); // 가벼운 종이 텍스처 배경
+  background-size: cover;
+  background-repeat: repeat;
+  font-family: 'Nanum Pen Script', cursive;
+  color: $text-color-pen;
+
+  &:focus {
+    border-color: darken($border-color-pen, 20%);
+    box-shadow: 0 0 0 0.125em rgba(74, 144, 226, 0.25);
+  }
+}
+
+.container {
+  max-width: 800px; // 컨텐츠 최대 너비 설정
+  margin: 0 auto;
+  padding: 2rem;
+  background-color: $card-background-paper;
+  border-radius: $border-radius;
+  border: 1px solid $border-color-pen;
+  box-shadow: $box-shadow;
+  background-image: url('https://your-image-url.com/paper-texture.png'); // 종이 질감 배경
+  background-size: cover;
+  background-repeat: repeat;
+}

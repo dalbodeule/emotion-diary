@@ -1,18 +1,20 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  compatibilityDate: '2024-08-22',
+  compatibilityDate: '2024-10-04',
   devtools: { enabled: true },
   nitro: {
     preset: 'aws-lambda',
   },
   css: [
-    "@/assets/css/main.css"
+    '@fortawesome/fontawesome-svg-core/styles.css',
+    "@/node_modules/bulma/bulma.scss",
+    "@/assets/css/main.scss",
   ],
-  postcss: {
-    plugins: {
-      tailwindcss: {},
-      autoprefixer: {}
-    }
+  purgecss: {
+    safelist: [/svg.*/, /fa.*/]
+  },
+  build: {
+    transpile: ['Dayjs'],
   },
   runtimeConfig: {
     db: {
@@ -28,7 +30,16 @@ export default defineNuxtConfig({
       region: process.env.AWS_REGION,
       profile: process.env.AWS_PROFILE,
       database: process.env.DATABASE_NAME,
-    }
+    },
+    turnstile: {
+      secretKey: process.env.TURNSTILE_SECRET_KEY,
+      siteKey: process.env.TURNSTILE_SITE_KEY,
+    },
   },
-  modules: ["@nuxtjs/turnstile", "@nuxt/eslint"]
+  modules: [
+    "@nuxtjs/turnstile",
+    "@nuxt/eslint",
+    "nuxt-auth-utils",
+    "nuxt-purgecss"
+  ]
 })

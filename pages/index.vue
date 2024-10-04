@@ -3,46 +3,58 @@
 </script>
 
 <template>
-  <div>
-    <div class="Frame self-stretch h-16 pb-6 bg-white flex-col justify-start items-center flex">
-      <div class="Frame self-stretch h-10 flex-col justify-start items-center flex">
-        <div class=" self-stretch text-center text-gray-700 text-4xl font-normal font-nanum-pen leading-10">감정일기</div>
-      </div>
+  <!-- Header Section -->
+  <div class="section">
+    <div class="has-text-centered">
+      <h1 class="title is-2 has-text-grey-dark">Em0ti</h1>
     </div>
-    <div class="Frame self-stretch h-16 pb-6 bg-white justify-between items-center inline-flex">
-      <div class="Frame grow shrink basis-0 h-10 justify-center items-center gap-[100px] flex">
-        <div class="Frame w-[150px] h-10 px-4 py-2 bg-yellow-400 rounded-lg shadow flex-col justify-center items-center inline-flex">
-          <div class=" self-stretch text-center text-white text-base font-normal font-nanum-pen leading-normal">이어쓰기 (로그인)</div>
-        </div>
-        <div class="Frame w-[180px] px-4 py-2 bg-blue-400 rounded-lg shadow flex-col justify-center items-center inline-flex">
-          <div class=" self-stretch text-center text-white text-base font-normal font-nanum-pen leading-normal">새로쓰기 (회원가입)</div>
-        </div>
-      </div>
+  </div>
+
+  <!-- Buttons Section -->
+  <div class="section has-text-centered">
+    <div class="buttons is-centered">
+      <!-- Login Button -->
+      <NuxtLink to="/login" class="button is-yellow is-medium">
+        이어쓰기 (로그인)
+      </NuxtLink>
+
+      <!-- Register Button -->
+      <NuxtLink to="/register" class="button is-blue is-medium">
+        새로쓰기 (회원가입)
+      </NuxtLink>
     </div>
-    <div class="Frame self-stretch h-36 flex-col justify-start items-start flex">
-      <div class="Frame self-stretch h-12 pb-4 bg-white flex-col justify-start items-start flex">
-        <div class="Frame self-stretch h-8 flex-col justify-start items-start flex">
-          <div class=" self-stretch text-gray-700 text-2xl font-normal font-nanum-pen leading-loose">감정일기를 쓰면 좋은 점</div>
-        </div>
-      </div>
-      <div class="Frame self-stretch h-8 pb-2 bg-white flex-col justify-start items-start flex">
-        <div class="Frame self-stretch h-6 flex-col justify-start items-start flex">
-          <div class="self-stretch text-gray-700 text-base font-normal font-nanum-pen leading-normal">
-            1. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus lacinia odio vitae vestibulum vestibulum.</div>
-        </div>
-      </div>
-      <div class="Frame self-stretch h-8 pb-2 bg-white flex-col justify-start items-start flex">
-        <div class="Frame self-stretch h-6 flex-col justify-start items-start flex">
-          <div class="self-stretch text-gray-700 text-base font-normal font-nanum-pen leading-normal">
-            2. Cras vehicula, mi eget laoreet varius, justo nulla facilisis elit, ut ullamcorper velit arcu sed nulla.</div>
-        </div>
-      </div>
-      <div class="Frame self-stretch h-8 pb-2 bg-white flex-col justify-start items-start flex">
-        <div class="Frame self-stretch h-6 flex-col justify-start items-start flex">
-          <div class="self-stretch text-gray-700 text-base font-normal font-nanum-pen leading-normal">
-            3. Suspendisse potenti. Nullam ac erat ante. Integer ornare, massa et luctus aliquet, odio libero tincidunt augue, eget tincidunt nisi libero id turpis.</div>
-        </div>
-      </div>
+  </div>
+
+  <!-- Benefits Section -->
+  <div class="section">
+    <div class="content">
+      <!-- Benefits Title -->
+      <h2 class="title is-4 has-text-grey-dark">
+        Em0ti를 쓰면 좋은 점
+      </h2>
+
+      <!-- Benefits List -->
+      <ul class="benefits is-4-mobile is-6-tablet is-6-desktop font-nanum-pen">
+        <li class="has-text-grey-dark">
+          내 감정을 모르는 사람에게 추천합니다. 내 감정순간을 돌아보는 기회가 됩니다.
+        </li>
+        <li class="has-text-grey-dark">
+          내 감정을 알고있다면, 감정일기를 모아 내 감정을 분석해볼 수 있습니다.
+        </li>
+        <li class="has-text-grey-dark">
+          감정 분석을 통해 내가 주로 느끼는 감정을 간단하게 정리하세요!
+        </li>
+        <li class="has-text-grey-dark">
+          당신에게 감정적 위기가 찾아올 때 전문가와 연결될 수 있도록 준비하고 있답니다!
+        </li>
+      </ul>
     </div>
   </div>
 </template>
+
+<style lang="scss" scoped>
+.benefits {
+  list-style: decimal;
+  line-height: 1.75;
+}
+</style>

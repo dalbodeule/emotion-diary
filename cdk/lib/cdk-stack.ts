@@ -1,7 +1,8 @@
 import * as cdk from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as apigateway from 'aws-cdk-lib/aws-apigateway';
+import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
+import * as apigatewayv2_integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3Deployment from 'aws-cdk-lib/aws-s3-deployment';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
@@ -15,6 +16,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as path from 'path';
 import { Peer, Port, SecurityGroup, SubnetType } from "aws-cdk-lib/aws-ec2";
 import { ClusterInstance } from "aws-cdk-lib/aws-rds";
+import { AllowedMethods } from "aws-cdk-lib/aws-cloudfront";
 
 export class CdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -28,9 +30,8 @@ export class CdkStack extends cdk.Stack {
 
     // VPC 생성 (기본 구성 또는 기존 VPC 참조)
     const vpc = new ec2.Vpc(this, 'em0ti-vpc', {
-      maxAzs: 4, // 가용 영역 수
+      maxAzs: 2, // 가용 영역 수
       cidr: "10.20.0.0/16",
-      natGateways: 1,
       subnetConfiguration: [
         {
           cidrMask: 24,
@@ -60,26 +61,22 @@ export class CdkStack extends cdk.Stack {
 
     const dbCluster = new rds.DatabaseCluster(this, 'Cluster', {
       engine: rds.DatabaseClusterEngine.auroraPostgres({
-        version: rds.AuroraPostgresEngineVersion.VER_15_7, // PostgreSQL 버전 선택
+        version: rds.AuroraPostgresEngineVersion.VER_16_3, // PostgreSQL 버전 선택
       }),
-      // capacity applies to all serverless instances in the cluster
-      serverlessV2MaxCapacity: 4,
-      serverlessV2MinCapacity: 0.5,
-      writer: ClusterInstance.serverlessV2('writer', {
-        publiclyAccessible: true
+      writer: ClusterInstance.provisioned('writer', {
+        publiclyAccessible: true,
+        instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MEDIUM)
       }),
-      readers: [
-        // puts it in promition tier 0-1
-        ClusterInstance.serverlessV2('reader1', { scaleWithWriter: true }),
-      ],
       port: 5432, // PostgreSQL 포트
       securityGroups: [dbSecurityGroup], // 보안 그룹 설정
       vpc: vpc,
       vpcSubnets: {
         subnetType: SubnetType.PUBLIC, // 프라이빗 서브넷에 배치
       },
-      enableDataApi: true, // Data API 사용 (필요한 경우)
       defaultDatabaseName: 'emoti', // 기본 데이터베이스 이름
+      credentials: rds.Credentials.fromGeneratedSecret("postgres", {
+        secretName: `rdsCluster-secret`
+      })
     })
 
     // Lambda에 사용될 IAM 역할 생성 또는 기존 역할 가져오기
@@ -190,22 +187,44 @@ export class CdkStack extends cdk.Stack {
       vpc, // VPC에 Lambda 연결
     });
 
-    // API Gateway 생성
-    const api = new apigateway.LambdaRestApi(this, 'emoti-gateway', {
-      handler: nuxtLambda,
-      proxy: true,
-      deployOptions: {
-        stageName: 'prod', // 스테이지 설정
+    const httpApi = new apigatewayv2.HttpApi(this, 'EmotiHttpApi', {
+      apiName: 'EmotiService',
+      defaultIntegration: new apigatewayv2_integrations.HttpLambdaIntegration(
+          'LambdaIntegration',
+          nuxtLambda
+      ),
+      corsPreflight: {
+        allowHeaders: ['*'],
+        allowMethods: [apigatewayv2.CorsHttpMethod.ANY],
+        allowOrigins: ['*'],
       },
+      defaultAuthorizer: undefined,
     });
+
+    nuxtLambda.addPermission('ApiGatewayInvokePermission', {
+      action: 'lambda:InvokeFunction',
+      principal: new iam.ServicePrincipal('apigateway.amazonaws.com'),
+      sourceArn: httpApi.arnForExecuteApi(),
+    });
+
+    httpApi.addRoutes({
+      path: '/{proxy+}',
+      methods: [apigatewayv2.HttpMethod.ANY],
+      integration: new apigatewayv2_integrations.HttpLambdaIntegration(
+          'LambdaIntegrationProxy',
+          nuxtLambda
+      ),
+    });
+
+    const originAccessIdentity = new cloudfront.OriginAccessIdentity(this, 'OriginAccessIdentity');
 
     // S3 버킷 생성 (정적 자산)
     const bucket = new s3.Bucket(this, 'emoti-static-s3', {
       websiteIndexDocument: 'index.html',
-      publicReadAccess: true, // 퍼블릭 읽기 허용
+      publicReadAccess: false, // 퍼블릭 읽기 비허용
       removalPolicy: cdk.RemovalPolicy.DESTROY, // 개발 시 버킷 제거 허용
       autoDeleteObjects: true, // 버킷 제거 시 객체 자동 삭제
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS, // 퍼블릭 액세스 설정 (ACL만 차단)
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL, // 퍼블릭 액세스 설정 (ACL만 차단)
     });
 
     // 정적 파일 S3로 배포
@@ -214,30 +233,61 @@ export class CdkStack extends cdk.Stack {
       destinationBucket: bucket,
     });
 
-    const apiDomainName = cdk.Fn.select(2, cdk.Fn.split('/', api.url));
-    // CloudFront 배포 생성
+    bucket.addToResourcePolicy(new iam.PolicyStatement({
+      actions: ['s3:GetObject'],
+      resources: [bucket.arnForObjects('*')],
+      principals: [new iam.CanonicalUserPrincipal(originAccessIdentity.cloudFrontOriginAccessIdentityS3CanonicalUserId)],
+    }));
+
+    const originRequestPolicy = new cloudfront.OriginRequestPolicy(this, 'OriginRequestPolicy', {
+      headerBehavior: cloudfront.OriginRequestHeaderBehavior.denyList('Host'),
+      queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.all(),
+      cookieBehavior: cloudfront.OriginRequestCookieBehavior.all(),
+    });
+
+    // CloudFront Distribution 생성
     const distribution = new cloudfront.Distribution(this, 'emoti-cdn', {
       defaultBehavior: {
-        origin: new origins.HttpOrigin(apiDomainName, {
-          originPath: '/prod'
+        origin: new origins.HttpOrigin(`${httpApi.apiId}.execute-api.${this.region}.amazonaws.com`, {
+          originPath: '/', // 필요한 경우 스테이지 이름 추가
         }),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED, // SSR 응답 캐싱 비활성화
+        originRequestPolicy: originRequestPolicy,
+        allowedMethods: AllowedMethods.ALLOW_ALL
       },
       additionalBehaviors: {
-        // Nuxt 정적 자산 경로는 S3에서 제공
         '/_nuxt/*': {
-          origin: new origins.S3Origin(bucket),
+          origin: new origins.S3Origin(bucket, {
+            originAccessIdentity: originAccessIdentity,
+          }),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+          allowedMethods: AllowedMethods.ALLOW_ALL
         },
         '/static/*': {
-          origin: new origins.S3Origin(bucket),
+          origin: new origins.S3Origin(bucket, {
+            originAccessIdentity: originAccessIdentity,
+          }),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+          allowedMethods: AllowedMethods.ALLOW_ALL
         },
       },
       domainNames: ['em0ti.ink', 'www.em0ti.ink'],
       certificate,
+      logBucket: new s3.Bucket(this, 'CloudFrontLogs', {
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        autoDeleteObjects: true,
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        encryption: s3.BucketEncryption.S3_MANAGED,
+
+        // ACL 활성화를 위한 설정 추가
+        objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_PREFERRED,
+        accessControl: s3.BucketAccessControl.LOG_DELIVERY_WRITE,
+      }),
+      logFilePrefix: 'emoti-cdn-logs/',
+      enableLogging: true,
     });
 
     // Route 53에 레코드 생성
@@ -258,6 +308,5 @@ export class CdkStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'CloudFrontUrl', {
       value: distribution.distributionDomainName,
     });
-
   }
 }
