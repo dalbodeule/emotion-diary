@@ -34,7 +34,7 @@
       </h2>
 
       <!-- Benefits List -->
-      <ul class="benefits is-4-mobile is-6-tablet is-6-desktop font-nanum-pen">
+      <ul class="benefits font-nanum-pen is-size-4 is-size-6-mobile">
         <li class="has-text-grey-dark">
           내 감정을 모르는 사람에게 추천합니다. 내 감정순간을 돌아보는 기회가 됩니다.
         </li>

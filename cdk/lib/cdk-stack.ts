@@ -1,22 +1,23 @@
 import * as cdk from 'aws-cdk-lib';
-import type { Construct } from 'constructs';
+import type {Construct} from 'constructs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as apigatewayv2_integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import {BucketAccessControl} from 'aws-cdk-lib/aws-s3';
 import * as s3Deployment from 'aws-cdk-lib/aws-s3-deployment';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import {AccessLevel, AllowedMethods, HttpVersion, SigningBehavior, SigningProtocol} from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import {Peer, Port, SecurityGroup, SubnetType} from 'aws-cdk-lib/aws-ec2';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as route53targets from 'aws-cdk-lib/aws-route53-targets';
 import * as certificatemanager from 'aws-cdk-lib/aws-certificatemanager';
 import * as rds from 'aws-cdk-lib/aws-rds';
+import {ClusterInstance} from 'aws-cdk-lib/aws-rds';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as path from 'path';
-import { Peer, Port, SecurityGroup, SubnetType } from "aws-cdk-lib/aws-ec2";
-import { ClusterInstance } from "aws-cdk-lib/aws-rds";
-import { AllowedMethods } from "aws-cdk-lib/aws-cloudfront";
 
 export class CdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -216,28 +217,36 @@ export class CdkStack extends cdk.Stack {
       ),
     });
 
-    const originAccessIdentity = new cloudfront.OriginAccessIdentity(this, 'OriginAccessIdentity');
+    // CloudFront OAC 생성
+    const cloudfrontOAC = new cloudfront.S3OriginAccessControl(this, 'CloudFrontOAC', {
+      originAccessControlName: "EmotiOAC",
+      description: "Origin Access Control for Emoti CloudFront",
+      signing: {
+        behavior: SigningBehavior.NO_OVERRIDE,
+        protocol: SigningProtocol.SIGV4,
+      },
+    });
 
     // S3 버킷 생성 (정적 자산)
     const bucket = new s3.Bucket(this, 'emoti-static-s3', {
-      websiteIndexDocument: 'index.html',
       publicReadAccess: false, // 퍼블릭 읽기 비허용
       removalPolicy: cdk.RemovalPolicy.DESTROY, // 개발 시 버킷 제거 허용
       autoDeleteObjects: true, // 버킷 제거 시 객체 자동 삭제
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL, // 퍼블릭 액세스 설정 (ACL만 차단)
+      blockPublicAccess: new s3.BlockPublicAccess({
+        blockPublicAcls: false,
+        blockPublicPolicy: false,
+        ignorePublicAcls: false,
+        restrictPublicBuckets: false
+      }),
+      accessControl: BucketAccessControl.PRIVATE,
     });
 
     // 정적 파일 S3로 배포
     new s3Deployment.BucketDeployment(this, 'DeployStaticFiles', {
       sources: [s3Deployment.Source.asset(path.join(__dirname, '../../.output/public'))],
       destinationBucket: bucket,
+      destinationKeyPrefix: 'static/'
     });
-
-    bucket.addToResourcePolicy(new iam.PolicyStatement({
-      actions: ['s3:GetObject'],
-      resources: [bucket.arnForObjects('*')],
-      principals: [new iam.CanonicalUserPrincipal(originAccessIdentity.cloudFrontOriginAccessIdentityS3CanonicalUserId)],
-    }));
 
     const originRequestPolicy = new cloudfront.OriginRequestPolicy(this, 'OriginRequestPolicy', {
       headerBehavior: cloudfront.OriginRequestHeaderBehavior.denyList('Host'),
@@ -257,21 +266,17 @@ export class CdkStack extends cdk.Stack {
         allowedMethods: AllowedMethods.ALLOW_ALL
       },
       additionalBehaviors: {
-        '/_nuxt/*': {
-          origin: new origins.S3Origin(bucket, {
-            originAccessIdentity: originAccessIdentity,
-          }),
-          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
-          allowedMethods: AllowedMethods.ALLOW_ALL
-        },
         '/static/*': {
-          origin: new origins.S3Origin(bucket, {
-            originAccessIdentity: originAccessIdentity,
+          origin: origins.S3BucketOrigin.withOriginAccessControl(bucket, {
+            originAccessControl: cloudfrontOAC,
+            originAccessLevels: [
+                AccessLevel.READ,
+            ],
           }),
-          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          compress: true,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.ALLOW_ALL,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
-          allowedMethods: AllowedMethods.ALLOW_ALL
+          originRequestPolicy: originRequestPolicy,
         },
       },
       domainNames: ['em0ti.ink', 'www.em0ti.ink'],
@@ -288,6 +293,7 @@ export class CdkStack extends cdk.Stack {
       }),
       logFilePrefix: 'emoti-cdn-logs/',
       enableLogging: true,
+      httpVersion: HttpVersion.HTTP2_AND_3
     });
 
     // Route 53에 레코드 생성
