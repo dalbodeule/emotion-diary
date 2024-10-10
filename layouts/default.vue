@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {setLocale} from '@vee-validate/i18n'
+const { fetch } = useUserSession()
 
 useHead({
   htmlAttrs: {
@@ -8,6 +9,10 @@ useHead({
 })
 
 setLocale('ko')
+
+;(async() => {
+  await fetch()
+})()
 </script>
 
 <template>

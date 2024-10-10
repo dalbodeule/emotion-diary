@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+const { fetch } = useUserSession()
+const router = useRouter()
 
 // 로그인 입력 필드 상태 관리
 const username = ref('');
@@ -18,25 +19,18 @@ const login = async () => {
 
   try {
     // 로그인 API 요청
-    const { data, error: fetchError } = await useFetch('/api/auth/login', {
+    await $fetch('/api/auth/login', {
       method: 'POST',
       body: requestData,
+      credentials: 'include',
     });
 
-    // 에러 처리
-    if (fetchError.value) {
-      error.value = fetchError.value.data.message;
-      return;
-    }
-
-    // 성공 응답 처리
-    if (data.value) {
-      // 성공적으로 로그인한 후 추가 로직 (e.g., 페이지 이동)
-      console.log('Login successful:', data.value);
-      // 예시: 메인 페이지로 이동
-      navigateTo('/');
-    }
+    // 성공적으로 로그인한 후 추가 로직 (e.g., 페이지 이동)
+    console.log('Login successful:');
+    await fetch()
+    await navigateTo('/')
   } catch (err) {
+    console.log(err)
     error.value = 'An unexpected error occurred.';
   }
 };

@@ -3,8 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import type { RSAKeyPairOptions} from 'crypto';
 import { createHash, generateKeyPair, pbkdf2, randomBytes,
     createCipheriv } from 'crypto';
-import bcrypt from 'bcrypt';
-import {getUserSession} from "#imports";
+import bcrypt from 'bcryptjs';
 
 export interface RegisterRequestDTO {
     username: string;
@@ -90,7 +89,8 @@ export default defineEventHandler(async (event) => {
     // 비밀번호 해싱 (SHA256 -> bcrypt)
     const sha256Hash = createHash('sha256').update(body.password).digest('hex');
     const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(sha256Hash, saltRounds);
+    const salt = await bcrypt.genSalt(saltRounds);
+    const passwordHash = await bcrypt.hash(sha256Hash, salt);
 
     const aesKey = await pbkdf2Promise(
         body.password,
@@ -131,10 +131,14 @@ export default defineEventHandler(async (event) => {
 
     // 세션 설정
     await setUserSession(event, {
-        username: body.username,
-        email: body.email,
-        nickname: body.nickname,
-        id: newUser?.id ?? 0
+        user: {
+            username: body.username,
+            email: body.email,
+            nickname: body.nickname,
+            id: newUser?.id ?? 0
+        },
+        secure: {},
+        loggedInAt: new Date(),
     });
 
     const response: RegisterResponseDTO = {

@@ -214,3 +214,6 @@ amplifytools.xcconfig
 .amplify
 amplify_outputs*
 amplifyconfiguration*
+
+# models
+model/*

@@ -7,7 +7,9 @@ export default defineNuxtConfig({
   nitro: {
     preset: 'aws-lambda',
   },
+  srcDir: '.',
   app: {
+    app: 'app',
     cdnURL: '/static',
     head: {
       charset: 'utf-8',
@@ -29,7 +31,6 @@ export default defineNuxtConfig({
       theme_color: "#fdf6e3",
       start_url: '/',
       lang: 'ko-KR',
-      lang: 'ko-KR',
       icons: [
         {
           src: `${ process.env.NODE_ENV === 'development' ? '' : '/static'}/favicon.png`,
@@ -43,10 +44,46 @@ export default defineNuxtConfig({
         }
       ]
     },
-    devOptions: {
-      enabled: false,
-      type: 'module'
-    }
+    workbox: {
+      runtimeCaching: [
+        {
+          urlPattern: ({ request }) => request.destination === 'document',
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'html-cache'
+          }
+        },
+        {
+          urlPattern: ({request}) => (request.url as string).includes("/api"),
+          handler: 'NetworkOnly', // 네트워크에서만 요청, 캐싱 사용 안 함
+          options: {
+            cacheName: 'api-nocache'
+          }
+        },
+        {
+          urlPattern: ({ request }) => ['script', 'style', 'worker'].includes(request.destination),
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'assets-cache',
+          },
+        },
+        {
+          urlPattern: ({ request }) => request.destination === 'image',
+          handler: 'NetworkFirst', // 이미지도 항상 네트워크 우선
+          options: {
+            cacheName: 'image-cache',
+          },
+        },
+        {
+          urlPattern: ({ request }) => request.destination === 'font',
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'font-cache',
+          },
+        }
+      ],
+    },
+    registerType: 'autoUpdate', // 새로운 서비스 워커가 감지되면 자동 업데이트
   },
   purgecss: {
     safelist: [/svg.*/, /fa.*/]
@@ -77,8 +114,8 @@ export default defineNuxtConfig({
   modules: [
     "@nuxtjs/turnstile",
     "@nuxt/eslint",
-    "nuxt-auth-utils",
     "nuxt-purgecss",
-    '@vite-pwa/nuxt'
+    '@vite-pwa/nuxt',
+    "nuxt-auth-utils"
   ]
 })

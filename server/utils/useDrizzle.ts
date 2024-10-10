@@ -1,6 +1,7 @@
 import {drizzle, NodePgQueryResultHKT} from 'drizzle-orm/node-postgres'; // 일반 Node.js 용 pg
 import { drizzle as awsDrizzle } from 'drizzle-orm/aws-data-api/pg'; // AWS Data API용
 import { RDSDataClient } from '@aws-sdk/client-rds-data';
+import { SecretsManager } from '@aws-sdk/client-secrets-manager';
 import pg from 'pg'
 
 import * as schema from "../db/schema"
@@ -32,15 +33,35 @@ export async function useDrizzleOnLocal() {
 }
 
 export async function useDrizzleOnAWS() {
-    // 서버 환경: AWS RDS Data API 사용
-    const rdsClient = new RDSDataClient({
-        region: config.aws.region,
-    })
+    const dbCredentials = await getSecretValue(config.aws.secretArn as string);
 
-    return awsDrizzle(rdsClient, {
-        database: config.aws.database,
-        secretArn: config.aws.secretArn,
-        resourceArn: config.aws.resourceArn,
-        schema: schema
+    const pool = new pg.Pool({
+        host: dbCredentials.host,
+        port: parseInt(dbCredentials.port, 10),
+        user: dbCredentials.username,
+        password: dbCredentials.password,
+        database: dbCredentials.dbname,
     })
+    const client = await pool.connect()
+    return drizzle(client, {
+        schema: schema
+    }) // 로컬 환경에서 사용
+}
+
+// 비밀 정보 가져오기 함수
+async function getSecretValue(secretArn: string) {
+    const secretsManager = new SecretsManager({ region: process.env.NUXT_AWS_REGION });
+    try {
+        // 비밀 가져오기
+        const secretData = await secretsManager.getSecretValue({ SecretId: secretArn });
+
+        if (secretData.SecretString) {
+            // 비밀이 문자열 형식일 경우 파싱
+            return JSON.parse(secretData.SecretString);
+        }
+        throw new Error('Secret is not in a valid format.');
+    } catch (error) {
+        console.error('Failed to retrieve secret:', error);
+        throw error;
+    }
 }

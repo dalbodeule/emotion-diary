@@ -1,5 +1,5 @@
 import {getUserSession} from "#imports"
-import bcrypt from "bcrypt"
+import bcrypt from "bcryptjs"
 import * as schema from "@/server/db/schema"
 import {and, eq} from "drizzle-orm";
 import type {RegisterResponseDTO} from "~/server/routes/api/auth/register.put";
@@ -52,13 +52,19 @@ export default defineEventHandler(async (event) => {
 
     // 세션 설정
     await setUserSession(event, {
-        username: user.username,
-        email: user.email,
-        nickname: user.nickname,
-        id: user.id
+        user: {
+            username: user.username,
+            email: user.email,
+            nickname: user.nickname,
+            id: user.id
+        },
+        secure: {
+
+        },
+        loggedInAt: new Date(),
     });
 
-    const response: RegisterResponseDTO = {
+    const response: LoginResponseDTO = {
         id: user.id,
         username: user.username,
         email: user.email,

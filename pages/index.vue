@@ -1,5 +1,5 @@
-<script lang="ts">
-
+<script setup lang="ts">
+const { loggedIn, fetch } = useUserSession()
 </script>
 
 <template>
@@ -12,7 +12,17 @@
 
   <!-- Buttons Section -->
   <div class="section has-text-centered">
-    <div class="buttons is-centered">
+    <div v-if="loggedIn" class="buttons is-centered">
+      <NuxtLink to="/diary" class="button is-yellow is-medium">
+        이어쓰기
+      </NuxtLink>
+
+      <!-- Register Button -->
+      <NuxtLink to="/logout" class="button is-blue is-medium">
+        로그아웃
+      </NuxtLink>
+    </div>
+    <div v-else class="buttons is-centered">
       <!-- Login Button -->
       <NuxtLink to="/login" class="button is-yellow is-medium">
         이어쓰기 (로그인)

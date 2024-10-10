@@ -15,6 +15,7 @@ import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as route53targets from 'aws-cdk-lib/aws-route53-targets';
 import * as certificatemanager from 'aws-cdk-lib/aws-certificatemanager';
 import * as rds from 'aws-cdk-lib/aws-rds';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import {ClusterInstance} from 'aws-cdk-lib/aws-rds';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as path from 'path';
@@ -113,6 +114,26 @@ export class CdkStack extends cdk.Stack {
       resources: ['*'], // 네트워크 인터페이스는 특정 리소스가 아니므로 "*"로 설정
     }));
 
+    // CloudWatch Logs 권한 추가
+    lambdaRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'logs:CreateLogGroup',
+        'logs:CreateLogStream',
+        'logs:PutLogEvents'
+      ],
+      resources: [
+        `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lambda/emoti-lambda:*`
+      ],
+    }));
+
+    // CloudWatch 로그 그룹 생성
+    const logGroup = new logs.LogGroup(this, 'EmotiLambdaLogGroup', {
+      logGroupName: '/aws/lambda/emoti-lambda',
+      removalPolicy: cdk.RemovalPolicy.DESTROY, // 스택 삭제 시 로그 그룹도 삭제
+      retention: logs.RetentionDays.ONE_WEEK, // 로그 보존 기간 설정
+    });
+
     // Spot Fleet에 필요한 IAM 역할 생성
     const spotFleetRole = new iam.Role(this, 'SpotFleetRole', {
       assumedBy: new iam.ServicePrincipal('spotfleet.amazonaws.com'),
@@ -186,6 +207,7 @@ export class CdkStack extends cdk.Stack {
       },
       role: lambdaRole,
       vpc, // VPC에 Lambda 연결
+      logGroup: logGroup
     });
 
     const httpApi = new apigatewayv2.HttpApi(this, 'EmotiHttpApi', {
