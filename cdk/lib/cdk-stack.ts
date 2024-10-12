@@ -18,6 +18,7 @@ import * as rds from 'aws-cdk-lib/aws-rds';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import {ClusterInstance} from 'aws-cdk-lib/aws-rds';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as sagemaker from 'aws-cdk-lib/aws-sagemaker';
 import * as path from 'path';
 
 export class CdkStack extends cdk.Stack {
@@ -191,6 +192,89 @@ export class CdkStack extends cdk.Stack {
       },
     });
 
+    // S3 버킷 생성 (정적 자산)
+    const bucket = new s3.Bucket(this, 'emoti-static-s3', {
+      publicReadAccess: false, // 퍼블릭 읽기 비허용
+      removalPolicy: cdk.RemovalPolicy.DESTROY, // 개발 시 버킷 제거 허용
+      autoDeleteObjects: true, // 버킷 제거 시 객체 자동 삭제
+      blockPublicAccess: new s3.BlockPublicAccess({
+        blockPublicAcls: false,
+        blockPublicPolicy: false,
+        ignorePublicAcls: false,
+        restrictPublicBuckets: false
+      }),
+      accessControl: BucketAccessControl.PRIVATE,
+    });
+
+    // 정적 파일 S3로 배포
+    new s3Deployment.BucketDeployment(this, 'DeployStaticFiles', {
+      sources: [s3Deployment.Source.asset(path.join(__dirname, '../../.output/public'))],
+      destinationBucket: bucket,
+      destinationKeyPrefix: 'static/'
+    });
+
+    const sageMakerRole = new iam.Role(this, 'SageMakerRole', {
+      assumedBy: new iam.ServicePrincipal('sagemaker.amazonaws.com'),
+      inlinePolicies: {
+        S3AccessPolicy: new iam.PolicyDocument({
+          statements: [
+            // ECR Permissions
+            new iam.PolicyStatement({
+              actions: [
+                'ecr:GetAuthorizationToken',
+                'ecr:BatchCheckLayerAvailability',
+                'ecr:GetDownloadUrlForLayer',
+                'ecr:BatchGetImage',
+              ],
+              resources: ['*'],
+            }),
+            new iam.PolicyStatement({
+              actions: ['s3:GetObject', 's3:ListBucket'],
+              resources: [
+                `arn:aws:s3:::${bucket.bucketName}`,       // For ListBucket
+                `arn:aws:s3:::${bucket.bucketName}/*`,    // For GetObject
+              ],
+            }),
+          ],
+        }),
+      },
+    });
+
+    // Add ECR read-only permissions
+    sageMakerRole.addManagedPolicy(
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonEC2ContainerRegistryReadOnly')
+    );
+
+    const model = new sagemaker.CfnModel(this, 'BERTModel', {
+      executionRoleArn: sageMakerRole.roleArn,
+      primaryContainer: {
+        image: "763104351884.dkr.ecr.ap-northeast-2.amazonaws.com/" +
+            "huggingface-tensorflow-inference:2.11.1-transformers4.26.0-cpu-py39-ubuntu20.04", // Huggingface Transformers 이미지
+        modelDataUrl: `s3://${bucket.bucketName}/model/bert.tar.gz`, // S3에서 불러올 모델 경로 정확히 지정
+      },
+    });
+
+    // SageMaker Serverless Endpoint Configuration
+    const endpointConfig = new sagemaker.CfnEndpointConfig(this, 'BERTEndpointConfig', {
+      productionVariants: [{
+        modelName: model.attrModelName, // 위에서 생성한 모델 이름 사용
+        variantName: 'AllTraffic', // 트래픽을 처리할 버전 이름
+        serverlessConfig: {
+          memorySizeInMb: 2048, // Serverless 인프라의 메모리 크기 설정
+          maxConcurrency: 5,    // 동시에 처리할 수 있는 최대 요청 수
+        },
+      }],
+    });
+
+    endpointConfig.node.addDependency(model);
+
+    // SageMaker Endpoint 생성 (Private Endpoint)
+    const endpoint = new sagemaker.CfnEndpoint(this, 'BERTEndpoint', {
+      endpointConfigName: endpointConfig.attrEndpointConfigName,
+    });
+
+    endpoint.node.addDependency(endpointConfig);
+
     // Lambda 함수 생성
     const nuxtLambda = new lambda.Function(this, 'emoti-lambda', {
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -203,7 +287,8 @@ export class CdkStack extends cdk.Stack {
         NUXT_AWS_DATABASE: 'emoti',
         NUXT_AWS_REGION: this.region,
         NUXT_AWS_RESOURCE_ARN: dbCluster.clusterArn,
-        NUXT_AWS_SECRET_ARN: dbCluster.secret?.secretArn ?? ''
+        NUXT_AWS_SECRET_ARN: dbCluster.secret?.secretArn ?? '',
+        NUXT_BERT_ENDPOINT: endpoint.attrEndpointName
       },
       role: lambdaRole,
       vpc, // VPC에 Lambda 연결
@@ -249,26 +334,15 @@ export class CdkStack extends cdk.Stack {
       },
     });
 
-    // S3 버킷 생성 (정적 자산)
-    const bucket = new s3.Bucket(this, 'emoti-static-s3', {
-      publicReadAccess: false, // 퍼블릭 읽기 비허용
-      removalPolicy: cdk.RemovalPolicy.DESTROY, // 개발 시 버킷 제거 허용
-      autoDeleteObjects: true, // 버킷 제거 시 객체 자동 삭제
-      blockPublicAccess: new s3.BlockPublicAccess({
-        blockPublicAcls: false,
-        blockPublicPolicy: false,
-        ignorePublicAcls: false,
-        restrictPublicBuckets: false
-      }),
-      accessControl: BucketAccessControl.PRIVATE,
-    });
+    // S3에서 모델을 불러오기 위한 권한 추가
+    bucket.grantRead(sageMakerRole);
 
-    // 정적 파일 S3로 배포
-    new s3Deployment.BucketDeployment(this, 'DeployStaticFiles', {
-      sources: [s3Deployment.Source.asset(path.join(__dirname, '../../.output/public'))],
-      destinationBucket: bucket,
-      destinationKeyPrefix: 'static/'
-    });
+    // Lambda에서 SageMaker API 호출 권한 추가
+    lambdaRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['sagemaker:InvokeEndpoint'],
+      resources: [`arn:aws:sagemaker:${this.region}:${this.account}:endpoint/${endpoint.endpointName}`], // SageMaker 엔드포인트 ARN
+    }));
+
 
     const originRequestPolicy = new cloudfront.OriginRequestPolicy(this, 'OriginRequestPolicy', {
       headerBehavior: cloudfront.OriginRequestHeaderBehavior.denyList('Host'),
