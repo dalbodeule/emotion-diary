@@ -18,7 +18,7 @@ const logout = async () => {
     <!-- 좌측 메뉴 -->
     <aside class="menu is-size-6-mobile is-size-4-tablet">
       <div class="user-info">
-        <p v-if="user">{{ user.nickname }}님, 환영합니다!</p>
+        <p v-if="user" class="font-nanum-pen">{{ user.nickname }}</p>
         <button @click="logout" class="button is-small is-danger mt-2 is-size-8-mobile is-size-6-tablet">로그아웃</button>
       </div>
 
@@ -37,7 +37,9 @@ const logout = async () => {
   </div>
 </template>
 
-<style scoped>
+<style lang="scss" scoped>
+@import '@/assets/css/main.scss';
+
 .layout-container {
   display: flex;
   min-height: 100vh;
@@ -47,11 +49,17 @@ const logout = async () => {
 .menu {
   width: 250px;
   padding: 20px;
+  background-color: $card-background-paper; // 카드 배경으로 종이 느낌
+  border-right: 1px solid $border-color-pen; // 부드러운 테두리 추가
+  border-radius: 5px;
+  box-shadow: $box-shadow; // 약간의 그림자 추가
 }
 
 .user-info {
   margin-bottom: 20px;
   text-align: center;
+  font-family: 'Noto Sans', sans-serif; // 부드러운 폰트 적용
+  color: $text-color-pen; // 텍스트 색상
 }
 
 /* 메뉴 아이템 스타일 */
@@ -64,6 +72,19 @@ const logout = async () => {
   margin-bottom: 15px;
 }
 
+.menu-list li a {
+  color: $text-color-pen; // 기본 텍스트 색상
+  text-decoration: none; // 링크 밑줄 제거
+  padding: 8px 10px; // 패딩 추가로 클릭할 때 더 큰 영역 제공
+  display: block; // 블록 형태로 전체 영역 클릭 가능하게
+  border-radius: 5px; // 경계 둥글게
+  transition: background-color 0.2s ease; // 배경색 변화 부드럽게
+}
+
+.menu-list li a:hover {
+  background-color: lighten($primary, 40%); // 호버 시 배경색 변경
+}
+
 .menu-item-disabled {
   color: #a0a0a0;
   cursor: not-allowed;
@@ -71,6 +92,8 @@ const logout = async () => {
 
 .is-active {
   font-weight: bold;
+  background-color: lighten($primary, 30%) !important; // 활성화된 링크의 배경색
+  color: $text-color-pen; // 텍스트 색상
 }
 
 /* 메인 콘텐츠 영역 스타일 */
