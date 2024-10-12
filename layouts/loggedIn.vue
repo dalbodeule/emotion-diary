@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import { setLocale } from '@vee-validate/i18n'
+
 const { user, clear } = useUserSession();
 const router = useRouter();
 
 definePageMeta({
   middleware: 'auth'
 })
+
+setLocale('ko')
 
 // 로그아웃 함수
 const logout = async () => {

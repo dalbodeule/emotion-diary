@@ -112,6 +112,7 @@ export default defineNuxtConfig({
     },
   },
   modules: [
+    "@pinia/nuxt",
     "@nuxtjs/turnstile",
     "@nuxt/eslint",
     "nuxt-purgecss",
