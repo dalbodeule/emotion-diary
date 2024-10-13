@@ -1,15 +1,18 @@
-import * as schema from '@/server/db/schema';
-import { and, eq } from 'drizzle-orm';
-import type { RSAKeyPairOptions} from 'crypto';
-import { createHash, generateKeyPair, pbkdf2, randomBytes,
-    createCipheriv } from 'crypto';
-import bcrypt from 'bcryptjs';
+import * as schema from '@/server/db/schema'
+import { and, eq } from 'drizzle-orm'
+import type { RSAKeyPairOptions} from 'crypto'
+import { generateKeyPair, pbkdf2, randomBytes, createCipheriv } from 'crypto'
+import passwordHash, { getRandomInt } from '@/server/utils/passwordHash'
+import { split } from 'shamirs-secret-sharing-ts'
+import {createDecipheriv} from "node:crypto";
 
 export interface RegisterRequestDTO {
-    username: string;
-    password: string;
-    email: string;
-    nickname: string;
+    username: string,
+    password: string,
+    email: string,
+    nickname: string,
+    security_question: string,
+    security_answer: string,
 }
 
 export interface RegisterResponseDTO {
@@ -19,29 +22,42 @@ export interface RegisterResponseDTO {
     nickname: string;
 }
 
-const generateKeyPairPromise = (type: stirng, options: RSAKeyPairOptions<"pem", "pem">): Promise<{ publicKey: string, privateKey: string} | Error> => new Promise((resolve, reject) => {
+export const generateKeyPairPromise = (type: stirng, options: RSAKeyPairOptions<"pem", "pem">): Promise<{ publicKey: string, privateKey: string} | Error> => new Promise((resolve, reject) => {
     generateKeyPair(type, options, (err, publicKey: string, privateKey: string) => {
         if(err) reject(err)
         resolve({ publicKey, privateKey })
     })
 })
 
-const pbkdf2Promise = (password: string, salt: string, iteration = 10000, keyLength = 32): Promise<Buffer> => new Promise((resolve, reject) => {
+export const pbkdf2Promise = (password: string, salt: string, iteration = 10000, keyLength = 32): Promise<Buffer> => new Promise((resolve, reject) => {
     pbkdf2(password, salt, iteration, keyLength, 'sha256', (err, publicKey) => {
         if(err) reject(err)
         resolve(publicKey)
     })
 })
 
-const encryptPrivateKeyPromise = (privateKey: string, aesKey: Buffer): Promise<{
+export const encryptPrivateKeyPromise = (privateKey: string, aesKey: Buffer): Promise<{
     encrypted: string, iv: string
-}> => new Promise((resolve, reject) => {
+}> => new Promise((resolve) => {
     const iv = randomBytes(16)
     const chiper = createCipheriv('aes-256-cbc', aesKey, iv)
     let encrypted = chiper.update(privateKey, 'utf8', 'hex')
     encrypted += chiper.final('hex')
 
     resolve({ encrypted, iv: iv.toString('hex')})
+})
+
+export const decryptPrivateKeyPromise =
+    (encryptedPrivateKey: string, aesKey: Buffer, iv: string):Promise<string>
+    => new Promise((resolve) =>
+{
+    const ivBuf = Buffer.from(iv, 'hex')
+    const decipher = createDecipheriv('aes-256-cbc', aesKey, ivBuf)
+
+    let decrypted = decipher.update(encryptedPrivateKey, 'hex', 'utf8')
+    decrypted += decipher.final('utf-8')
+
+    resolve(decrypted)
 })
 
 export default defineEventHandler(async (event) => {
@@ -54,7 +70,7 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event) as RegisterRequestDTO;
 
     // 요청 body 확인
-    if (!body.email || !body.password || !body.nickname || !body.username) {
+    if (!body.email || !body.password || !body.nickname || !body.username || !body.security_question || !body.security_answer) {
         return createError({
             status: 403,
             message: 'Body is wrong.'
@@ -86,15 +102,10 @@ export default defineEventHandler(async (event) => {
         }
     })
 
-    // 비밀번호 해싱 (SHA256 -> bcrypt)
-    const sha256Hash = createHash('sha256').update(body.password).digest('hex');
-    const saltRounds = 10;
-    const salt = await bcrypt.genSalt(saltRounds);
-    const passwordHash = await bcrypt.hash(sha256Hash, salt);
-
+    const salt = randomBytes(16).toString('hex')
     const aesKey = await pbkdf2Promise(
         body.password,
-        randomBytes(16).toString('hex')
+        salt
     )
 
     const { encrypted: encryptedPrivateKey, iv } = await encryptPrivateKeyPromise(
@@ -105,7 +116,7 @@ export default defineEventHandler(async (event) => {
     // 유저 생성
     await db.insert(schema.users).values({
         username: body.username,
-        passwordHash,
+        passwordHash: await passwordHash(body.password, getRandomInt(10, 20)),
         email: body.email,
         nickname: body.nickname,
     }).execute();
@@ -126,20 +137,27 @@ export default defineEventHandler(async (event) => {
         publicKey,
         privateKey: encryptedPrivateKey, // AES로 암호화된 공개 키
         iv, // 초기화 벡터 저장
+        salt,
         createdAt: new Date(),
     }).execute();
 
-    // 세션 설정
-    await setUserSession(event, {
-        user: {
-            username: body.username,
-            email: body.email,
-            nickname: body.nickname,
-            id: newUser?.id ?? 0
-        },
-        secure: {},
-        loggedInAt: new Date(),
-    });
+    const recoveryCode = randomBytes(16).toString('hex')
+
+    await db.insert(schema.user_credentials).values({
+        user_id: newUser.id,
+        recovery_code: recoveryCode,
+        security_question: body.security_question,
+        security_answer: await passwordHash(body.security_answer, getRandomInt(10, 20))
+    })
+
+    const parts = split(Buffer.from(privateKey), { shares: 5, threshold: 3})
+
+    for (const part: Buffer of parts) {
+        await db.insert(schema.private_key_shares).values({
+            user_id: newUser.id,
+            share: part.toString('base64')
+        }).execute()
+    }
 
     const response: RegisterResponseDTO = {
         id: newUser?.id,

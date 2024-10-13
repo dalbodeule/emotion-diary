@@ -10,9 +10,9 @@ export interface DiaryCreateDTO {
 }
 
 export default defineEventHandler(async (event) => {
-    const user = await getUserSession(event)
+    const session = await getUserSession(event)
 
-    if (!user) return createError({
+    if (!session) return createError({
         statusCode: 401,
         message: 'unauthorized.',
     })
@@ -26,11 +26,19 @@ export default defineEventHandler(async (event) => {
 
     const db = await useDrizzle()
 
-    const publicKeys = await db.query.publicKeys.findFirst({
-        where: eq(schema.publicKeys.userId, user.id)
+    const user = await db.query.users.findFirst({
+        where: eq(schema.users.id, session.user.id) // 이메일로 사용자 조회
     }).execute();
 
-    if (publicKey) return createError({
+    if (!user) {
+        return createError({ status: 404, message: 'User not found.' });
+    }
+
+    const publicKeys = await db.query.publicKeys.findFirst({
+        where: eq(schema.publicKeys.userId, user.id)
+    }).execute()
+
+    if (!publicKeys) return createError({
         statusCode: 403,
         message: 'Public key is wrong.'
     })

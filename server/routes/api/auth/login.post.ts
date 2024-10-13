@@ -1,9 +1,8 @@
-import {getUserSession} from "#imports"
 import bcrypt from "bcryptjs"
 import * as schema from "@/server/db/schema"
-import {and, eq} from "drizzle-orm";
-import type {RegisterResponseDTO} from "~/server/routes/api/auth/register.put";
-import {createHash} from "crypto";
+import { and, eq } from "drizzle-orm";
+import { decryptPrivateKeyPromise, pbkdf2Promise, RegisterResponseDTO } from "~/server/routes/api/auth/register.put";
+import { createHash } from "crypto";
 
 export interface LoginRequestDTO {
     username: string;
@@ -50,6 +49,22 @@ export default defineEventHandler(async (event) => {
         message: 'Wrong credentials.'
     })
 
+    const credentials = await db.query.publicKeys.findFirst({
+        where: eq(schema.publicKeys.userId, user.id)
+    })
+
+    if (!credentials) return createError({
+        status: 403,
+        message: 'Wrong credentials.'
+    })
+
+    const aesKey = await pbkdf2Promise(
+        body.password,
+        credentials.salt
+    )
+
+    const privateKey = await decryptPrivateKeyPromise(credentials.privateKey, aesKey, credentials.iv)
+
     // 세션 설정
     await setUserSession(event, {
         user: {
@@ -59,7 +74,7 @@ export default defineEventHandler(async (event) => {
             id: user.id
         },
         secure: {
-
+            privateKey
         },
         loggedInAt: new Date(),
     });

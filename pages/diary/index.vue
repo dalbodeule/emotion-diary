@@ -1,30 +1,41 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
+import type { IDiary, DiaryListResponseDTO } from "~/server/routes/api/diary/list.get";
+import {useIntersectionObserver} from "@vueuse/core";
 
 definePageMeta({
   layout: 'logged-in'
 })
 
 // 목업 데이터
-const diaries = ref([
-  {
-    title: '오늘의 일기',
-    date: new Date('2024-09-15'),
-    emotionTags: ['기쁨', '활기참'],
-  },
-  {
-    title: '공부하면서 느낀 점',
-    date: new Date('2024-09-30'),
-    emotionTags: ['지루함', '집중'],
-  },
-  {
-    title: '친구와의 대화',
-    date: new Date('2024-10-05'),
-    emotionTags: ['화남', '평화'],
-  },
-]);
+const diaries: Ref<IDiary[]> = ref([])
+const page: Ref<number> = ref(1)
+const loading = ref(false)
 
-diaries.value.sort((a, b) => b.date - a.date)
+const fetchDiaries = async() => {
+  if (loading.value) return
+  loading.value = true
+
+  try {
+    const response = await $fetch(`/api/diary/list?page=${page.value}`) as DiaryListResponseDTO
+    diaries.value = [... diaries.value, ...response.diaries]
+    page.value += 1
+  } catch (e) {
+    console.error(`Failed to fetch diaries: ${e}`)
+  } finally {
+    loading.value = false
+  }
+}
+
+const loadMore = ref<HTMLElement | null>(null)
+const { stop } = useIntersectionObserver(loadMore, async ([{ isIntersecting }]) => {
+  if (isIntersecting) await fetchDiaries()
+}, { threshold: 1.0 })
+
+onMounted(async() => {
+  await fetchDiaries()
+})
+
 </script>
 
 <template>
@@ -32,8 +43,8 @@ diaries.value.sort((a, b) => b.date - a.date)
     <h1 class="is-size-4-mobile is-size-2-tablet" style="padding-left: 0.5em;">일기 목록</h1>
     <ul class="diary-list">
       <li v-for="(diary, index) in diaries" :key="index" class="diary-item">
-        <h2 class="is-size-6-mobile is-size-4-tablet">{{ diary.title }}</h2>
-        <p class="is-size-7-mobile is-size-5-tablet">작성일: {{ dayjs(diary.date).format("YYYY-MM-DD hh:mm:ss") }}</p>
+        <h2 class="is-size-6-mobile is-size-4-tablet font-nanum-pen">{{ diary.title }}</h2>
+        <p class="is-size-7-mobile is-size-5-tablet font-nanum-pen">작성일: {{ dayjs(diary.date).format("YYYY-MM-DD hh:mm:ss") }}</p>
         <div class="tags">
           <span v-for="(tag, tagIndex) in diary.emotionTags" :key="tagIndex" class="tag is-size-8-mobile is-size-6-tablet">
             #{{ tag }}
@@ -41,6 +52,10 @@ diaries.value.sort((a, b) => b.date - a.date)
         </div>
       </li>
     </ul>
+    <!-- Intersection Observer를 사용하는 감지기 -->
+    <div ref="loadMore" style="height: 20px;" />
+
+    <div v-if="loading" class="loading">Loading...</div>
   </div>
 </template>
 
@@ -81,5 +96,11 @@ diaries.value.sort((a, b) => b.date - a.date)
   border-radius: 5px;
   font-size: 0.9rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); // 태그에 약간의 그림자 추가
+}
+
+.loading {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 1.2rem;
 }
 </style>

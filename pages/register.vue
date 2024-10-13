@@ -37,14 +37,22 @@ configure({
 localize({
   ko: {
     names: {
-      domain: '도메인',
-      expires_in: '만료일'
+      username: '아이디',
+      password: '비밀번호',
+      email: '이메일',
+      nickname: '닉네임',
+      security_question: '보안질문',
+      security_answer: '보안답변'
     }
   },
   en: {
     names: {
-      domain: 'Domain',
-      expires_in: 'Expire date'
+      username: 'ID',
+      password: 'Password',
+      email: 'Email',
+      nickname: 'Nickname',
+      security_question: 'Security question',
+      security_answer: 'Security answer',
     }
   }
 })
@@ -58,6 +66,8 @@ const schema = {
   },
   email: { email: true, required: true },
   nickname:{ regex: /^[a-zA-Z0-9ㄱ-ㅎㅏ-ㅣ가-힣\b\-_]*$/, min: 2, max: 15, required: true },
+  security_question: { required: true, min: 5, max: 30 },
+  security_answer: { required: true, min: 2, max: 30 }
 }
 
 const onSubmit = async(values) => {
@@ -151,6 +161,38 @@ const onSubmit = async(values) => {
                   name="nickname"
                   type="text"
                   placeholder="닉네임을 입력하세요"
+                  class="input is-medium"
+              />
+            </div>
+            <ErrorMessage v-slot="{ message }" name="nickname">
+              <p class="help is-danger">{{ message }}</p>
+            </ErrorMessage>
+          </div>
+
+          <!-- 보안질문 입력 -->
+          <div class="field">
+            <label class="label is-family-primary has-text-grey-dark font-nanum-pen">보안질문</label>
+            <div class="control">
+              <Field
+                  name="security_question"
+                  type="text"
+                  placeholder="보안질문을 입력하세요"
+                  class="input is-medium"
+              />
+            </div>
+            <ErrorMessage v-slot="{ message }" name="nickname">
+              <p class="help is-danger">{{ message }}</p>
+            </ErrorMessage>
+          </div>
+
+          <!-- 보안답변 입력 -->
+          <div class="field">
+            <label class="label is-family-primary has-text-grey-dark font-nanum-pen">보안답변</label>
+            <div class="control">
+              <Field
+                  name="security_answer"
+                  type="text"
+                  placeholder="보안답변을 입력하세요"
                   class="input is-medium"
               />
             </div>

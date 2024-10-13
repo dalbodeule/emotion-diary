@@ -1,0 +1,1 @@
+ALTER TABLE "private_key_shares" ALTER COLUMN "share" SET DATA TYPE text;

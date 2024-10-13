@@ -1,0 +1,1 @@
+ALTER TABLE "public_keys" ADD COLUMN "salt" varchar(256);

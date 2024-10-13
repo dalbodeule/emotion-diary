@@ -23,6 +23,7 @@ export const publicKeys = pgTable('public_keys', {
     publicKey: text('public_key').notNull(), // 공개 키 데이터 (RSA4096 또는 Web3 비대칭 키)
     privateKey: text('private_key').notNull(), // 비밀 키 데이터 (암호화된 형태 저장)
     iv: text('iv').notNull(),
+    salt: varchar('salt', { length: 256 }),
     createdAt: timestamp('created_at').defaultNow().notNull(), // 공개 키 생성 일시
 }, (table) => {
     return {
@@ -40,4 +41,28 @@ export const diaries = pgTable('diaries', {
     userId: serial('user_id').references(() => users.id), // 사용자 외래 키 (일기와 사용자 관계)
     createdAt: timestamp('created_at').defaultNow().notNull(), // 일기 생성 일시
     updatedAt: timestamp('updated_at').defaultNow().notNull(), // 일기 업데이트 일시
+});
+
+export const user_credentials = pgTable('user_credentials', {
+    id: serial('id').primaryKey(),
+    user_id: serial('user_id').references(() => users.id), // 외래 키 (users 테이블 참조)
+    security_question: varchar('security_question', { length: 255 }).notNull(), // 보안 질문
+    security_answer: varchar('security_answer', { length: 255 }).notNull(), // 해시된 보안 질문 응답
+    recovery_code: varchar('recovery_code', { length: 50 }).notNull(), // 이메일로 발송되는 복구 코드
+    created_at: timestamp('created_at').defaultNow().notNull(),
+    updated_at: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const emails = pgTable('emails', {
+    id: serial('id').primaryKey(),
+    user_id: serial('user_id').references(() => users.id),
+    recovery_code: varchar('recovery_code').notNull(),
+    sent_at: timestamp('sent_at').defaultNow().notNull(),
+});
+
+export const private_key_shares = pgTable('private_key_shares', {
+    id: serial('id').primaryKey(),
+    user_id: serial('user_id').references(() => users.id), // 외래 키
+    share: text('share').notNull(), // Shamir share
+    created_at: timestamp('created_at').defaultNow().notNull(),
 });

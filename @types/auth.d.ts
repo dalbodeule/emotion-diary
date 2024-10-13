@@ -14,8 +14,6 @@ declare module '#auth-utils' {
     }
 
     interface SecureSessionData {
-        // Add your own fields
+        privateKey: string;
     }
 }
-
-export {}

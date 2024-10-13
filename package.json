@@ -27,6 +27,7 @@
     "dayjs": "^1.11.13",
     "drizzle-orm": "^0.33.0",
     "pinia": "^2.2.4",
+    "shamirs-secret-sharing-ts": "^1.0.2",
     "vee-validate": "^4.13.2",
     "vue": "latest",
     "yup": "^1.4.0"

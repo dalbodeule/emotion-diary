@@ -9,6 +9,10 @@ import { localize } from '@vee-validate/i18n'
 import ko from '@vee-validate/i18n/dist/locale/ko.json'
 import en from '@vee-validate/i18n/dist/locale/en.json'
 
+definePageMeta({
+  layout: 'logged-in'
+})
+
 // 규칙 정의
 defineRule('required', required)
 defineRule('max', max)
@@ -36,6 +40,7 @@ localize({
 const diaryStore = useDiaryStore()
 const newTag = ref<string>('')
 const isSubmitting = ref(false)
+const router = useRouter()
 
 const schema = {
   title: { required: true },
@@ -46,18 +51,22 @@ const onSubmit = async () => {
   isSubmitting.value = true; // 버튼 비활성화를 위한 설정
   const savedDiary = diaryStore.addDiary();
 
-  // API에 POST 요청
-  await useFetch('/api/diary', {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: savedDiary,
-  });
+  try {
+    // API에 PUT 요청
+    await $fetch('/api/diary', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: savedDiary,
+    });
 
-  resetForm(); // 폼 초기화
-  isSubmitting.value = false; // 제출 완료 후 버튼 활성화
+    isSubmitting.value = false; // 제출 완료 후 버튼 활성화
+    await router.push('/diary')
+  } catch(e) {
+    console.error(e)
+  }
 };
 
 const addTag = () => {
@@ -73,7 +82,7 @@ const removeTag = (tag: string) => {
 }
 
 const removeTagLatest = () => {
-  if(!isSubmitting.value)
+  if(!isSubmitting.value || newTag.value == '') {}
     diaryStore.removeTagLatest();
 }
 </script>
@@ -120,7 +129,7 @@ const removeTagLatest = () => {
                 type="text"
                 v-model="newTag"
                 @keyup.space.prevent="addTag"
-                @keyup.delete.prevent="removeTagLatest"
+                @keyup.delete="removeTagLatest"
                 placeholder="태그 입력 후 Space (예: 행복)"
             />
           </div>
