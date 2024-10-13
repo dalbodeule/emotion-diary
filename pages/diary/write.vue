@@ -42,13 +42,13 @@ const schema = {
   content: { required: true, max: 2048, min: 10 }
 }
 
-const onSubmit = async (values) => {
+const onSubmit = async () => {
   isSubmitting.value = true; // 버튼 비활성화를 위한 설정
   const savedDiary = diaryStore.addDiary();
 
   // API에 POST 요청
-  await useFetch('/api/diaries', {
-    method: 'POST',
+  await useFetch('/api/diary', {
+    method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
     },

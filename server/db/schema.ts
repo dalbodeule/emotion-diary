@@ -1,4 +1,4 @@
-import { pgTable, serial, text, varchar, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import {pgTable, serial, text, varchar, timestamp, uniqueIndex, boolean, json} from 'drizzle-orm/pg-core';
 
 // 유저 테이블 생성
 export const users = pgTable('users', {
@@ -29,4 +29,15 @@ export const publicKeys = pgTable('public_keys', {
         // 유저 ID에 대한 유니크 인덱스 설정 (각 유저는 하나의 공개 키만 가질 수 있음)
         userIdIndex: uniqueIndex('public_keys_user_id_idx').on(table.userId),
     };
+});
+
+export const diaries = pgTable('diaries', {
+    id: serial('id').primaryKey(), // 일기의 고유 식별자
+    title: varchar('title', { length: 255 }).notNull(), // 일기 제목
+    content: text('content').notNull(), // 일기 내용
+    tags: json('tags').default([]), // 감정 태그 (JSON 형식으로 저장)
+    agreeToUseTags: boolean('agree_to_use_tags').notNull().default(false), // 감정 태그 사용 동의 여부
+    userId: serial('user_id').references(() => users.id), // 사용자 외래 키 (일기와 사용자 관계)
+    createdAt: timestamp('created_at').defaultNow().notNull(), // 일기 생성 일시
+    updatedAt: timestamp('updated_at').defaultNow().notNull(), // 일기 업데이트 일시
 });
