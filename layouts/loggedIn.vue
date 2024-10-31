@@ -23,7 +23,7 @@ const logout = async () => {
     <aside class="menu is-size-6-mobile is-size-4-tablet">
       <div class="user-info">
         <p v-if="user" class="font-nanum-pen">{{ user.nickname }}</p>
-        <button @click="logout" class="button is-small is-danger mt-2 is-size-8-mobile is-size-6-tablet">로그아웃</button>
+        <button class="button is-small is-danger mt-2 is-size-8-mobile is-size-6-tablet" @click="logout">로그아웃</button>
       </div>
 
       <ul class="menu-list">

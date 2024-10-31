@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useDiaryStore } from '@/stores/diaryStore';
-import {configure, ErrorMessage, Field, Form} from 'vee-validate';
+import {configure, ErrorMessage, Field, Form, defineRule } from 'vee-validate';
 import { required, max, min } from '@vee-validate/rules';
-import { defineRule } from 'vee-validate';
 import { localize } from '@vee-validate/i18n'
 
 import ko from '@vee-validate/i18n/dist/locale/ko.json'
 import en from '@vee-validate/i18n/dist/locale/en.json'
+import type {EmotionRequestDTO} from "~/server/routes/api/diary/emotion.put";
 
 definePageMeta({
   layout: 'logged-in'
@@ -47,6 +47,27 @@ const schema = {
   content: { required: true, max: 2048, min: 10 }
 }
 
+// 태그 도우미 API 호출 함수
+const fetchEmotionTags = async () => {
+  if (diaryStore.currentDiary.content.length == 0) return;
+
+  try {
+    const body: EmotionRequestDTO = {
+      body: diaryStore.currentDiary.content
+    }
+
+    const response = await $fetch('/api/diary/emotion', {
+      method: 'PUT',
+      body,
+      credentials: 'include',
+    });
+
+    tagSuggestions.value = Object.keys(response.emotions); // 반환된 감정 목록으로 태그 제안 설정
+  } catch (error) {
+    console.error('Error fetching emotion tags:', error);
+  }
+}
+
 const onSubmit = async () => {
   isSubmitting.value = true; // 버튼 비활성화를 위한 설정
   const savedDiary = diaryStore.addDiary();
@@ -67,7 +88,7 @@ const onSubmit = async () => {
   } catch(e) {
     console.error(e)
   }
-};
+}
 
 const addTag = () => {
   console.log(newTag.value)
@@ -91,16 +112,16 @@ const removeTagLatest = () => {
   <div class="diary-write">
     <h1 class="title">일기 쓰기</h1>
 
-    <Form @submit="onSubmit" :validation-schema="schema">
+    <Form :validation-schema="schema" @submit="onSubmit">
       <div class="field">
         <label class="label font-nanum-pen is-size-6-mobile is-size-5-tablet">제목</label>
         <div class="control">
           <Field
+              v-model="diaryStore.currentDiary.title"
               name="title"
               as="input"
               type="text"
               class="input is-size-6-mobile is-size-5-tablet"
-              v-model="diaryStore.currentDiary.title"
           />
           <ErrorMessage name="title" class="help is-danger" />
         </div>
@@ -110,10 +131,10 @@ const removeTagLatest = () => {
         <label class="label font-nanum-pen is-size-6-mobile is-size-5-tablet">내용</label>
         <div class="control">
           <Field
+              v-model="diaryStore.currentDiary.content"
               name="content"
               as="textarea"
               class="textarea is-size-6-mobile is-size-5-tablet"
-              v-model="diaryStore.currentDiary.content"
           />
           <p class="help is-size-6-mobile is-size-5-tablet">{{ 2048 - diaryStore.currentDiary.content.length }}자 남음</p>
           <ErrorMessage name="content" class="help is-danger" />
@@ -122,25 +143,28 @@ const removeTagLatest = () => {
 
       <div class="field">
         <label class="label font-nanum-pen is-size-6-mobile is-size-5-tablet">감정 태그</label>
-        <div class="control">
-          <div class="tags">
+        <div class="control has-addons">
+          <div class="tags control">
             <input
+                v-model="newTag"
                 class="input"
                 type="text"
-                v-model="newTag"
+                placeholder="태그 입력 후 Space (예: 행복)"
                 @keyup.space.prevent="addTag"
                 @keyup.delete="removeTagLatest"
-                placeholder="태그 입력 후 Space (예: 행복)"
-            />
+            >
+          </div>
+          <div class="control">
+            <button type="button" class="button" @click="fetchEmotionTags">감정태그 도움받기</button>
           </div>
           <span
-              class="tag is-size-6"
               v-for="tag in diaryStore.currentDiary.tags"
-              :key="tag">
+              :key="tag"
+              class="tag is-size-6">
             #{{ tag }}
             <button
                 class="delete is-small"
-                @click="removeTag(tag)"></button>
+                @click="removeTag(tag)"/>
           </span>
         </div>
       </div>
@@ -148,12 +172,12 @@ const removeTagLatest = () => {
       <div class="field">
         <label class="checkbox is-size-6-mobile is-size-5-tablet">
           <input
+              v-model="diaryStore.currentDiary.isUseTag"
               name="agreeToUseTags"
               type="checkbox"
-              v-model="diaryStore.currentDiary.isUseTag"
               :true-value="true"
               :false-value="false"
-          />
+          >
           감정 태그 사용에 동의합니다.
         </label>
         <ErrorMessage name="agreeToUseTags" class="help is-danger" />

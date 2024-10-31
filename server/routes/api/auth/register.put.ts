@@ -48,8 +48,7 @@ export const encryptPrivateKeyPromise = (privateKey: string, aesKey: Buffer): Pr
 })
 
 export const decryptPrivateKeyPromise =
-    (encryptedPrivateKey: string, aesKey: Buffer, iv: string):Promise<string>
-    => new Promise((resolve) =>
+    (encryptedPrivateKey: string, aesKey: Buffer, iv: string):Promise<string> => new Promise((resolve) =>
 {
     const ivBuf = Buffer.from(iv, 'hex')
     const decipher = createDecipheriv('aes-256-cbc', aesKey, ivBuf)

@@ -1,22 +1,24 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
-import { CdkStack } from '../lib/cdk-stack';
+import {InfrastructureStack} from "../lib/infrastructure-stack";
+import {WebLayerStack} from "../lib/web-layer-stack";
+import {SageMakerStack} from "../lib/sagemaker-stack";
 
 const app = new cdk.App();
-new CdkStack(app, 'Em0tiStack', {
-    env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
-    /* If you don't specify 'env', this stack will be environment-agnostic.
-     * Account/Region-dependent features and context lookups will not work,
-     * but a single synthesized template can be deployed anywhere. */
+const props: cdk.StackProps = {
+    env: {
+        account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION
+    }
+}
+const commonName = 'em0ti'
 
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+const infraStack = new InfrastructureStack(app, `${commonName}-InfrastructureStack`, props);
+const sageMakerStack = new SageMakerStack(app, `${commonName}-SageMakerStack`, props);
+const webLayerStack = new WebLayerStack(app, `${commonName}-WebLayerStack`, props);
 
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
+// 스택 간 의존성 설정
+sageMakerStack.addDependency(infraStack);
+webLayerStack.addDependency(infraStack);
+webLayerStack.addDependency(sageMakerStack);
 
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
-});

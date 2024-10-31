@@ -6,6 +6,9 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   nitro: {
     preset: 'aws-lambda',
+    experimental: {
+      tasks: true
+    }
   },
   srcDir: '.',
   app: {
@@ -110,6 +113,9 @@ export default defineNuxtConfig({
       secretKey: process.env.TURNSTILE_SECRET_KEY,
       siteKey: process.env.TURNSTILE_SITE_KEY,
     },
+    bert: {
+      endpoint: process.env.BERT_ENDPOINT
+    }
   },
   modules: [
     "@pinia/nuxt",
