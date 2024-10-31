@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event) as EmotionRequestDTO
     const config = useRuntimeConfig(event)
 
-    const session = getUserSession(event)
+    const session = await getUserSession(event)
     if(!session) return createError({
         status: 403,
         message: 'unauthorized.'
@@ -25,6 +25,8 @@ export default defineEventHandler(async (event) => {
             message: 'Invalid content provided.'
         })
     }
+
+    const db = await useDrizzle()
 
     const sentences = splitIntoSentences(body.body) // 512글자 이하로 나눈 데이터 배열
 
@@ -41,8 +43,11 @@ export default defineEventHandler(async (event) => {
         }).execute();
     }
 
+    await new Promise((resolve) => setTimeout(resolve, 500))
     // 추가 로직 (Nitro.js Task 시작 등)
-    runTask("diary:emotion")
+    await runTask("emotion", {
+        payload: { endpoint: config.bert.endpoint }
+    })
 
     const result: EmotionResponseDTO = {
         recoveryCode: recoveryCode,
@@ -51,7 +56,7 @@ export default defineEventHandler(async (event) => {
     return result
 });
 
-function splitIntoSentences(content: string): string[] {
+const splitIntoSentences = (content: string): string[] => {
     const maxLength = 256
 
     // 정규 표현식을 사용하여 문장 구분
@@ -75,4 +80,8 @@ function splitIntoSentences(content: string): string[] {
         }
     }
     return result
+}
+
+const generateRecoveryCode = () => {
+    return Math.random().toString(36).substr(2, 21)
 }

@@ -115,7 +115,7 @@ export default defineEventHandler(async (event) => {
     // 유저 생성
     await db.insert(schema.users).values({
         username: body.username,
-        passwordHash: await passwordHash(body.password, getRandomInt(10, 20)),
+        passwordHash: await passwordHash(body.password, getRandomInt(8, 16)),
         email: body.email,
         nickname: body.nickname,
     }).execute();

@@ -180,7 +180,7 @@ const onSubmit = async(values) => {
                   class="input is-medium"
               />
             </div>
-            <ErrorMessage v-slot="{ message }" name="nickname">
+            <ErrorMessage v-slot="{ message }" name="security_question">
               <p class="help is-danger">{{ message }}</p>
             </ErrorMessage>
           </div>
@@ -196,7 +196,7 @@ const onSubmit = async(values) => {
                   class="input is-medium"
               />
             </div>
-            <ErrorMessage v-slot="{ message }" name="nickname">
+            <ErrorMessage v-slot="{ message }" name="security_answer">
               <p class="help is-danger">{{ message }}</p>
             </ErrorMessage>
           </div>

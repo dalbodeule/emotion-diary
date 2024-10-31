@@ -1,8 +1,7 @@
-import bcrypt from "bcryptjs"
+import bcrypt from "bcrypt"
 import * as schema from "@/server/db/schema"
 import { and, eq } from "drizzle-orm";
 import type { RegisterResponseDTO } from "~/server/routes/api/auth/register.put";
-import { decryptPrivateKeyPromise, pbkdf2Promise } from "~/server/routes/api/auth/register.put";
 import { createHash } from "crypto";
 
 export interface LoginRequestDTO {
@@ -43,7 +42,12 @@ export default defineEventHandler(async (event) => {
     });
 
     const sha256Hash = createHash('sha256').update(body.password).digest('hex');
-    const isPasswordCorrect = await bcrypt.compare(sha256Hash, user.passwordHash)
+    const isPasswordCorrect = await new Promise((resolve, reject) => {
+        bcrypt.compare(sha256Hash, user.passwordHash, (err, isMatch) => {
+            if (err) return reject(err);
+            return resolve(isMatch);
+        })
+    })
 
     if(!isPasswordCorrect) return createError({
         status: 403,

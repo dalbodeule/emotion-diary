@@ -1,20 +1,24 @@
-import type {SageMakerRuntime} from 'aws-sdk';
-import AWS from 'aws-sdk'
+import {
+    SageMakerRuntimeClient,
+    InvokeEndpointCommand,
+    InvokeEndpointCommandInput
+} from "@aws-sdk/client-sagemaker-runtime";
 import * as schema from '@/server/db/schema'
-import {eq} from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
-const runtime = new AWS.SageMakerRuntime();
+const client = new SageMakerRuntimeClient({});
 
-async function invokeSageMakerModel(endpointName: string, inputData: any): Promise<{ label: string, score: number}[]> {
-    const params: SageMakerRuntime.Types.InvokeEndpointInput = {
+async function invokeSageMakerModel(endpointName: string, inputData: any): Promise<{ label: string, score: number }[]> {
+    const params: InvokeEndpointCommandInput = {
         EndpointName: endpointName,
         Body: JSON.stringify(inputData),  // 모델에 전달할 데이터
         ContentType: 'application/json',
     };
 
     try {
-        const data = await runtime.invokeEndpoint(params).promise();
-        const responseBody = JSON.parse(data.Body.toString());
+        const command = new InvokeEndpointCommand(params);
+        const data = await client.send(command);
+        const responseBody = JSON.parse(new TextDecoder().decode(data.Body));
         console.log('Model Response:', responseBody);
         return responseBody;
     } catch (error) {
@@ -29,32 +33,33 @@ export default defineTask({
         description: "emotion inference queue handler"
     },
     async run(event) {
-        const config = useRuntimeConfig(event)
         const db = await useDrizzle()
 
         try {
-            const endpoint = `${config.bert.endpoint}`
+            const endpoint = event.payload.endpoint
             // 모델에 요청
             // 여러 문장을 포함한 요청
             while (true) {
                 const pendingRequests = await db.query.requests.findMany({
                     where: eq(schema.requests.status, 'pending'),
-                    limit: 16
+                    limit: 16,
+                    orderBy: asc(schema.requests.createdAt)
                 }).execute();
 
                 if (pendingRequests.length <= 0) break
 
                 const response = await invokeSageMakerModel(endpoint, {
-                    inputs: pendingRequests,
+                    inputs: pendingRequests.map((value) => value.content),
                     options: {
                         use_gpu: false, // GPU 사용 여부
                         wait_for_model: true // 모델 로드가 끝날 때까지 대기
                     }
                 }) // 응답에서 labels 추출
 
-                const labels = response.map((value) =>
-                    value.score >= 0.5 ? value.label : null
-                )
+                const update = response.map((value, idx) => {
+                    return { emotions: JSON.stringify(value), id: pendingRequests[idx].id, updated_at: new Date() }
+                })
+                await db.update(schema.requests).set(update).execute()
 
                 if (!Array.isArray(labels)) {
                     return createError({status: 500, message: 'Invalid response from model.'})

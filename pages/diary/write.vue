@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useDiaryStore } from '@/stores/diaryStore';
-import {configure, ErrorMessage, Field, Form, defineRule } from 'vee-validate';
-import { required, max, min } from '@vee-validate/rules';
-import { localize } from '@vee-validate/i18n'
+import {ref} from 'vue';
+import {useDiaryStore} from '@/stores/diaryStore';
+import {configure, defineRule, ErrorMessage, Field, Form} from 'vee-validate';
+import {max, min, required} from '@vee-validate/rules';
+import {localize} from '@vee-validate/i18n'
 
 import ko from '@vee-validate/i18n/dist/locale/ko.json'
 import en from '@vee-validate/i18n/dist/locale/en.json'
-import type {EmotionRequestDTO} from "~/server/routes/api/diary/emotion.put";
+import type {EmotionRequestDTO, EmotionResponseDTO} from "~/server/routes/api/diary/emotion.put";
+import type {EmotionRequestReturnDTO, EmotionResponseReturnDTO} from "~/server/routes/api/diary/emotion.post";
 
 definePageMeta({
   layout: 'logged-in'
@@ -47,6 +48,35 @@ const schema = {
   content: { required: true, max: 2048, min: 10 }
 }
 
+// recoveryCode 전송을 위한 POST 요청을 처리하는 함수
+const postRecoveryCode = async (recoveryCode: string): Promise<EmotionResponseReturnDTO> => {
+  const data: EmotionRequestReturnDTO = {
+    recoveryCode
+  }
+
+  try {
+    const response = await $fetch('/api/diary/emotion', {
+      method: 'POST',
+      body: data,
+      credentials: 'include',
+    });
+
+    // 응답 상태 체크
+    // 4. 102 Processing 처리
+    if (response.status === 102) {
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 대기 후 재요청
+      return await postRecoveryCode(recoveryCode); // 재요청
+    }
+
+    // 5. 200 OK 응답 처리
+    if (response.status === 200) {
+      return await response.json(); // 반환
+    }
+  } catch (error) {
+    console.error('Error sending recovery code:', error);
+  }
+};
+
 // 태그 도우미 API 호출 함수
 const fetchEmotionTags = async () => {
   if (diaryStore.currentDiary.content.length == 0) return;
@@ -60,9 +90,10 @@ const fetchEmotionTags = async () => {
       method: 'PUT',
       body,
       credentials: 'include',
-    });
+    }) as EmotionResponseDTO
 
-    tagSuggestions.value = Object.keys(response.emotions); // 반환된 감정 목록으로 태그 제안 설정
+    return await postRecoveryCode(response.recoveryCode)
+
   } catch (error) {
     console.error('Error fetching emotion tags:', error);
   }

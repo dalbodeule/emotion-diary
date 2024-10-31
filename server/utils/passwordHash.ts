@@ -1,11 +1,21 @@
 import {createHash} from "crypto";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 export default async function passwordHash(password: string, saltRounds: number) {
     // 비밀번호 해싱 (SHA256 -> bcrypt)
     const sha256Hash = createHash('sha256').update(password).digest('hex');
-    const salt = await bcrypt.genSalt(saltRounds);
-    return await bcrypt.hash(sha256Hash, salt)
+    const salt = await new Promise((resolve, reject) => {
+        bcrypt.genSalt(saltRounds, (err, salt) => {
+            if (err) return reject(err);
+            return resolve(salt);
+        });
+    })
+    return await new Promise((resolve, reject) => {
+        bcrypt.hash(sha256Hash, salt, (err, hash) => {
+            if (err) return reject(err);
+            return resolve(hash);
+        })
+    })
 }
 
 /**

@@ -11,45 +11,46 @@
     "lint": "eslint .",
     "lint:fix": "eslint --fix"
   },
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "os": [
+    "linux",
+    "darwin"
+  ],
   "dependencies": {
     "@fortawesome/free-brands-svg-icons": "^6.6.0",
     "@fortawesome/free-regular-svg-icons": "^6.6.0",
     "@fortawesome/free-solid-svg-icons": "^6.6.0",
     "@fortawesome/vue-fontawesome": "^3.0.8",
-    "@nuxt/eslint": "^0.5.1",
-    "@nuxtjs/turnstile": "^0.9.3",
-    "@pinia/nuxt": "^0.5.5",
-    "@vee-validate/i18n": "^4.13.2",
-    "@vee-validate/rules": "^4.13.2",
-    "aws-amplify": "^6.6.3",
-    "aws-sdk": "^2.1691.0",
-    "bcryptjs": "^2.4.3",
+    "@nuxt/eslint": "^0.6.1",
+    "@nuxtjs/turnstile": "^0.9.10",
+    "@pinia/nuxt": "^0.6.1",
+    "@vee-validate/i18n": "^4.14.6",
+    "@vee-validate/rules": "^4.14.6",
+    "bcrypt": "^5.1.1",
     "bulma": "^1.0.2",
     "dayjs": "^1.11.13",
-    "drizzle-orm": "^0.33.0",
-    "pinia": "^2.2.4",
+    "drizzle-orm": "^0.36.0",
+    "pinia": "^2.2.5",
     "shamirs-secret-sharing-ts": "^1.0.2",
-    "vee-validate": "^4.13.2",
+    "vee-validate": "^4.14.6",
     "vue": "latest",
-    "yup": "^1.4.0"
+    "yup": "^1.4.0",
+    "pg": "^8.13.1"
   },
   "devDependencies": {
-    "@aws-sdk/client-rds-data": "^3.635.0",
-    "@aws-sdk/client-secrets-manager": "^3.662.0",
-    "@aws-sdk/credential-providers": "^3.658.1",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/dotenv": "^8.2.0",
+    "@aws-sdk/client-sagemaker": "^3.683.0",
+    "@aws-sdk/client-secrets-manager": "^3.682.0",
+    "@types/dotenv": "^8.2.3",
     "@types/pg": "^8.11.10",
     "@vite-pwa/nuxt": "^0.10.5",
-    "autoprefixer": "^10.4.20",
-    "aws-cdk": "^2.160.0",
-    "aws-cdk-lib": "^2.160.0",
-    "constructs": "^10.3.0",
-    "drizzle-kit": "^0.24.0",
+    "drizzle-kit": "^0.27.0",
     "esbuild": "^0.24.0",
-    "nuxt": "^3.12.4",
-    "nuxt-auth-utils": "^0.4.2",
+    "nuxt": "^3.13.2",
+    "nuxt-auth-utils": "^0.5.1",
     "nuxt-purgecss": "^2.0.0",
-    "sass-embedded": "^1.79.4"
+    "sass-embedded": "^1.80.5"
   }
 }

@@ -92,7 +92,11 @@ export default defineNuxtConfig({
     safelist: [/svg.*/, /fa.*/]
   },
   build: {
-    transpile: ['Dayjs'],
+    transpile: [
+      'Dayjs',
+      'pg',
+      '@aws-sdk/client-sagemaker-runtime'
+    ],
   },
   runtimeConfig: {
     db: {

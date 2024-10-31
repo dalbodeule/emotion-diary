@@ -52,14 +52,26 @@ export default defineEventHandler(async (event) => {
         where: eq(schema.requests.recoveryCode, body.recoveryCode),
     }).execute();
 
-    // 감정 집계
-    const aggregatedEmotions = aggregateEmotions(
-        requestStatus.map((value) =>
-            JSON.parse(value.content)
-        )
+    if(!requestStatus) return createError({
+        status: 404,
+        message: 'not found.'
+    })
+
+    if(requestStatus.map((value) =>
+        value.status == 'pending'
+    ).length >= 1) return createError({
+            status: 102,
+            message: 'pending.'
+        })
+
+    const labels = requestStatus.map((value) =>
+        JSON.parse(value.content)
     )
+
+    // 감정 집계
+    const emotions = aggregateEmotions(labels)
     const result: EmotionResponseReturnDTO = {
-        emotions: aggregatedEmotions,
+        emotions,
         labels
     }
 

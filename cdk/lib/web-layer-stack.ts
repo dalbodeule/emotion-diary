@@ -6,10 +6,10 @@ import * as s3Deployment from 'aws-cdk-lib/aws-s3-deployment'
 import { createRoute53Record } from './route53';
 import type { Construct } from 'constructs';
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
-import {SigningBehavior, SigningProtocol} from "aws-cdk-lib/aws-cloudfront";
+import {AccessLevel, AllowedMethods, HttpVersion, SigningBehavior, SigningProtocol} from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as path from "path"
-import {Fn} from "aws-cdk-lib";
+import {DockerImage, Fn} from "aws-cdk-lib";
 import * as route53 from "aws-cdk-lib/aws-route53";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as apigatewayv2 from "aws-cdk-lib/aws-apigatewayv2"
@@ -70,9 +70,21 @@ export class WebLayerStack extends cdk.Stack {
             assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
         });
 
-        // IAM 권한 추가
+        // Secrets Manager에 대한 권한 추가
         lambdaRole.addToPolicy(new iam.PolicyStatement({
-            actions: ['secretsmanager:GetSecretValue', 'rds-data:*', 'ec2:*', 'logs:*'],
+            actions: ['secretsmanager:GetSecretValue'],
+            resources: [secretArn],
+        }));
+
+        // RDS Data API에 필요한 권한 추가
+        lambdaRole.addToPolicy(new iam.PolicyStatement({
+            actions: [
+                'rds-data:ExecuteStatement',
+                'rds-data:BatchExecuteStatement',
+                'rds-data:BeginTransaction',
+                'rds-data:CommitTransaction',
+                'rds-data:RollbackTransaction',
+            ],
             resources: [dbCluster],
         }));
 
@@ -110,9 +122,38 @@ export class WebLayerStack extends cdk.Stack {
             retention: logs.RetentionDays.ONE_WEEK, // 로그 보존 기간 설정
         });
 
+        // Lambda Layer 생성
+        const lambdaLayer = new lambda.LayerVersion(this, 'MyLambdaLayer', {
+            code: lambda.Code.fromAsset(path.join(__dirname, '../../.output/server'), {
+                bundling: {
+                    image: DockerImage.fromRegistry('node:20-bullseye'),
+                    command: [
+                        'bash', '-c',
+                        [
+                            'npm install --global node-pre-gyp',  // root 권한으로 global 설치
+                            'su node -c "rm -rf node_modules"',
+                            'su node -c "npm install"', // node 사용자로 package 설치
+                            'su node -c "npm rebuild bcrypt --build-from-source"',  // 아키텍처에 맞춰 bcrypt 재빌드
+                            'su node -c "find node_modules -type f -name \\"*.md\\" -delete"',  // 불필요한 .md 파일 삭제
+                            'su node -c "find node_modules -type f -name \\"*.d.ts\\" -delete"',  // TypeScript 타입 정의 삭제
+                            'su node -c "find node_modules -type d -name \\"test\\" -exec rm -rf {} +"', // test 폴더 삭제
+                            'su node -c "find node_modules -type d -name \\"__tests__\\" -exec rm -rf {} +"',  // __tests__ 폴더 삭제
+                            'mkdir -p /asset-output/nodejs',
+                            'cp -r node_modules /asset-output/nodejs'  // node_modules만 Layer에 포함
+                        ].join(' && ')
+                    ],
+                    user: 'root'
+                },
+            }),
+            compatibleRuntimes: [lambda.Runtime.NODEJS_20_X],
+            compatibleArchitectures: [lambda.Architecture.ARM_64],
+            description: 'Node.js Lambda Layer with native package dependencies',
+        });
+
         // Lambda 함수 생성 (예: nuxtLambda)
         const nuxtLambda = new lambda.Function(this, 'emoti-lambda', {
             runtime: lambda.Runtime.NODEJS_20_X,
+            architecture: lambda.Architecture.ARM_64,
             handler: 'index.handler',
             code: lambda.Code.fromAsset(path.join(__dirname, '../../.output/server')),
             memorySize: 512,
@@ -128,6 +169,7 @@ export class WebLayerStack extends cdk.Stack {
             role: lambdaRole,
             logGroup: logGroup,
             vpc: importedVpc,
+            layers: [lambdaLayer],
         });
 
         const httpApi = new apigatewayv2.HttpApi(this, 'EmotiHttpApi', {
@@ -168,22 +210,52 @@ export class WebLayerStack extends cdk.Stack {
             },
         });
 
+        const originRequestPolicy = new cloudfront.OriginRequestPolicy(this, 'OriginRequestPolicy', {
+            headerBehavior: cloudfront.OriginRequestHeaderBehavior.denyList('Host'),
+            queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.all(),
+            cookieBehavior: cloudfront.OriginRequestCookieBehavior.all(),
+        });
+
+        // CloudFront Distribution 생성
         const distribution = new cloudfront.Distribution(this, 'EmotiCDN', {
             defaultBehavior: {
-                origin: new origins.HttpOrigin(`${httpApi.apiId}.execute-api.${this.region}.amazonaws.com`),
+                origin: new origins.HttpOrigin(`${httpApi.apiId}.execute-api.${this.region}.amazonaws.com`, {
+                    originPath: '/', // 필요한 경우 스테이지 이름 추가
+                }),
                 viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED, // SSR 응답 캐싱 비활성화
+                originRequestPolicy,
+                allowedMethods: AllowedMethods.ALLOW_ALL
             },
             additionalBehaviors: {
                 '/static/*': {
                     origin: origins.S3BucketOrigin.withOriginAccessControl(bucket, {
-                        originAccessControlId: cloudfrontOAC.originAccessControlId,
+                        originAccessControl: cloudfrontOAC,
+                        originAccessLevels: [
+                            AccessLevel.READ,
+                        ],
                     }),
                     compress: true,
                     viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.ALLOW_ALL,
+                    cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+                    originRequestPolicy: originRequestPolicy,
                 },
             },
-            domainNames: [hostedZoneDomain, `www.${hostedZoneDomain}`],
+            domainNames: ['em0ti.ink', 'www.em0ti.ink'],
             certificate,
+            logBucket: new s3.Bucket(this, 'CloudFrontLogs', {
+                removalPolicy: cdk.RemovalPolicy.DESTROY,
+                autoDeleteObjects: true,
+                blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+                encryption: s3.BucketEncryption.S3_MANAGED,
+
+                // ACL 활성화를 위한 설정 추가
+                objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_PREFERRED,
+                accessControl: s3.BucketAccessControl.LOG_DELIVERY_WRITE,
+            }),
+            logFilePrefix: 'emoti-cdn-logs/',
+            enableLogging: true,
+            httpVersion: HttpVersion.HTTP2_AND_3
         });
 
         // Route 53 레코드 생성
