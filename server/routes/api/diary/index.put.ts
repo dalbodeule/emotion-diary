@@ -1,4 +1,4 @@
-import * as schema from '@/server/db/schema'
+import schema from '@/server/db/schema'
 import { eq } from "drizzle-orm";
 import { publicEncrypt, constants } from 'crypto'
 

@@ -1,4 +1,5 @@
-import * as schema from '@/server/db/schema'
+import schema from '@/server/db/schema'
+import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda"
 
 export interface EmotionRequestDTO {
     body: string,
@@ -27,6 +28,10 @@ export default defineEventHandler(async (event) => {
     }
 
     const db = await useDrizzle()
+    const lambdaClient = new LambdaClient({
+        region: config.emotion.region
+    }) // 지역 설정
+
 
     const sentences = splitIntoSentences(body.body) // 512글자 이하로 나눈 데이터 배열
 
@@ -45,9 +50,13 @@ export default defineEventHandler(async (event) => {
 
     await new Promise((resolve) => setTimeout(resolve, 500))
     // 추가 로직 (Nitro.js Task 시작 등)
-    await runTask("emotion", {
-        payload: { endpoint: config.bert.endpoint }
-    })
+    // Lambda 함수 호출 설정
+    const command = new InvokeCommand({
+        FunctionName: config.emotion.lambda,
+        InvocationType: "Event", // 비동기 호출
+        Payload: Buffer.from(""),
+    });
+    await lambdaClient.send(command)
 
     const result: EmotionResponseDTO = {
         recoveryCode: recoveryCode,

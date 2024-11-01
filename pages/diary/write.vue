@@ -52,29 +52,41 @@ const schema = {
 const postRecoveryCode = async (recoveryCode: string): Promise<EmotionResponseReturnDTO> => {
   const data: EmotionRequestReturnDTO = {
     recoveryCode
+  };
+
+  let retryCount = 0; // 시도 카운트
+  const maxRetries = 5; // 최대 시도 횟수
+
+  while (retryCount < maxRetries) {
+    try {
+      const response = await $fetch.raw('/api/diary/emotion', {
+        method: 'POST',
+        body: data,
+        credentials: 'include',
+      });
+
+      console.log(response.status)
+
+      // 응답 상태 체크
+      if (response.status == 200) {
+        return await response.text; // 성공적으로 응답
+      } else if (response.status == 202) {
+        // 202 pending 처리 (5초 후 재시도)
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      } else {
+        // 기타 에러 상태 처리
+        console.error(`Unexpected response status: ${response.status}`);
+        return null; // 필요에 따라 적절한 처리 추가
+      }
+    } catch (error) {
+      console.error('Error sending recovery code:', error);
+      retryCount += 1; // 에러 발생 시 시도 카운트 증가
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기 후 재시도
+    }
   }
 
-  try {
-    const response = await $fetch('/api/diary/emotion', {
-      method: 'POST',
-      body: data,
-      credentials: 'include',
-    });
-
-    // 응답 상태 체크
-    // 4. 102 Processing 처리
-    if (response.status === 102) {
-      await new Promise(resolve => setTimeout(resolve, 2000)); // 대기 후 재요청
-      return await postRecoveryCode(recoveryCode); // 재요청
-    }
-
-    // 5. 200 OK 응답 처리
-    if (response.status === 200) {
-      return await response.json(); // 반환
-    }
-  } catch (error) {
-    console.error('Error sending recovery code:', error);
-  }
+  console.error('Max retries exceeded. Could not send recovery code.');
+  throw new Error('Failed to send recovery code after multiple attempts.'); // 최대 시도 후 오류 발생
 };
 
 // 태그 도우미 API 호출 함수
@@ -134,7 +146,7 @@ const removeTag = (tag: string) => {
 }
 
 const removeTagLatest = () => {
-  if(!isSubmitting.value || newTag.value == '') {}
+  if(!isSubmitting.value || newTag.value == '')
     diaryStore.removeTagLatest();
 }
 </script>

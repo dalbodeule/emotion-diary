@@ -7,7 +7,7 @@ export default defineNuxtConfig({
   nitro: {
     preset: 'aws-lambda',
     experimental: {
-      tasks: true
+      tasks: false
     }
   },
   srcDir: '.',
@@ -117,8 +117,9 @@ export default defineNuxtConfig({
       secretKey: process.env.TURNSTILE_SECRET_KEY,
       siteKey: process.env.TURNSTILE_SITE_KEY,
     },
-    bert: {
-      endpoint: process.env.BERT_ENDPOINT
+    emotion: {
+      region: process.env.EMOTION_REGION,
+      lambda: process.env.EMOTION_LAMBDA
     }
   },
   modules: [

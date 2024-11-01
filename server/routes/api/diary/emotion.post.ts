@@ -1,5 +1,6 @@
-import * as schema from '@/server/db/schema'
-import {eq} from "drizzle-orm";
+import schema from '@/server/db/schema'
+import {and, eq} from "drizzle-orm";
+import { useDrizzle } from "@/server/utils/useDrizzle"
 
 export interface EmotionRequestReturnDTO {
     recoveryCode: string
@@ -32,7 +33,7 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event) as EmotionRequestReturnDTO
     const config = useRuntimeConfig(event)
 
-    const session = getUserSession(event)
+    const session = await getUserSession(event)
     if(!session) return createError({
         status: 403,
         message: 'unauthorized.'
@@ -49,23 +50,28 @@ export default defineEventHandler(async (event) => {
     const db = await useDrizzle()
 
     const requestStatus = await db.query.requests.findMany({
-        where: eq(schema.requests.recoveryCode, body.recoveryCode),
-    }).execute();
+        where: and(
+            eq(schema.requests.recoveryCode, body.recoveryCode),
+            eq(schema.requests.userId, session.user.id)
+        )
+    }).execute()
 
     if(!requestStatus) return createError({
         status: 404,
         message: 'not found.'
     })
 
-    if(requestStatus.map((value) =>
-        value.status == 'pending'
-    ).length >= 1) return createError({
-            status: 102,
+    const hasPendingRequests = requestStatus.filter(value => value.status == 'pending').length > 0;
+
+    if (hasPendingRequests) {
+        return createError({
+            status: 202,
             message: 'pending.'
-        })
+        });
+    }
 
     const labels = requestStatus.map((value) =>
-        JSON.parse(value.content)
+        JSON.parse(value.emotions)
     )
 
     // 감정 집계

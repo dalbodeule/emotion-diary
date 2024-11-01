@@ -1,4 +1,4 @@
-import * as schema from '@/server/db/schema'
+import schema from '@/server/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type { RSAKeyPairOptions} from 'crypto'
 import { generateKeyPair, pbkdf2, randomBytes, createCipheriv } from 'crypto'

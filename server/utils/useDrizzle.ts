@@ -1,15 +1,12 @@
-import {drizzle, NodePgQueryResultHKT} from 'drizzle-orm/node-postgres'; // 일반 Node.js 용 pg
-import { drizzle as awsDrizzle } from 'drizzle-orm/aws-data-api/pg'; // AWS Data API용
-import { RDSDataClient } from '@aws-sdk/client-rds-data';
+import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres'; // 일반 Node.js 용 pg
 import { SecretsManager } from '@aws-sdk/client-secrets-manager';
 import pg from 'pg'
 
-import * as schema from "../db/schema"
-import {PgDatabase} from "drizzle-orm/pg-core";
+import schema from "@/server/db/schema"
 
 const config = useRuntimeConfig()
 
-export async function useDrizzle() {
+export async function useDrizzle(): Promise<NodePgDatabase<typeof schema>> {
     // 로컬 및 서버 환경 판별을 위한 플래그
     const isLocal = process.env.NODE_ENV === 'development';
 
@@ -28,7 +25,7 @@ export async function useDrizzleOnLocal() {
     })
     const client = await pool.connect()
     return drizzle(client, {
-        schema: schema
+        schema
     }) // 로컬 환경에서 사용
 }
 
@@ -44,8 +41,8 @@ export async function useDrizzleOnAWS() {
     })
     const client = await pool.connect()
     return drizzle(client, {
-        schema: schema
-    }) // 로컬 환경에서 사용
+        schema
+    })// 로컬 환경에서 사용
 }
 
 // 비밀 정보 가져오기 함수

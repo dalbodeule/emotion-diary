@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt"
-import * as schema from "@/server/db/schema"
+import schema from "@/server/db/schema"
 import { and, eq } from "drizzle-orm";
 import type { RegisterResponseDTO } from "~/server/routes/api/auth/register.put";
 import { createHash } from "crypto";

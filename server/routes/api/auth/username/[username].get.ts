@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { useDrizzle } from '@/server/utils/useDrizzle'
-import * as schema  from '@/server/db/schema'
+import schema  from '@/server/db/schema'
 
 export interface UsernameIsExistsResponseDTO {
     exists: boolean

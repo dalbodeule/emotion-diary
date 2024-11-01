@@ -9,7 +9,7 @@ import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import {AccessLevel, AllowedMethods, HttpVersion, SigningBehavior, SigningProtocol} from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as path from "path"
-import {DockerImage, Fn} from "aws-cdk-lib";
+import {DockerImage, Duration, Fn} from "aws-cdk-lib";
 import * as route53 from "aws-cdk-lib/aws-route53";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as apigatewayv2 from "aws-cdk-lib/aws-apigatewayv2"
@@ -70,8 +70,16 @@ export class WebLayerStack extends cdk.Stack {
             assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
         });
 
+        const emotionLambdaRole = new iam.Role(this, 'EmotionLambdaRole', {
+            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+        })
+
         // Secrets Manager에 대한 권한 추가
         lambdaRole.addToPolicy(new iam.PolicyStatement({
+            actions: ['secretsmanager:GetSecretValue'],
+            resources: [secretArn],
+        }));
+        emotionLambdaRole.addToPolicy(new iam.PolicyStatement({
             actions: ['secretsmanager:GetSecretValue'],
             resources: [secretArn],
         }));
@@ -87,8 +95,26 @@ export class WebLayerStack extends cdk.Stack {
             ],
             resources: [dbCluster],
         }));
+        emotionLambdaRole.addToPolicy(new iam.PolicyStatement({
+            actions: [
+                'rds-data:ExecuteStatement',
+                'rds-data:BatchExecuteStatement',
+                'rds-data:BeginTransaction',
+                'rds-data:CommitTransaction',
+                'rds-data:RollbackTransaction',
+            ],
+            resources: [dbCluster],
+        }));
 
         lambdaRole.addToPolicy(new iam.PolicyStatement({
+            actions: [
+                'ec2:CreateNetworkInterface',
+                'ec2:DescribeNetworkInterfaces',
+                'ec2:DeleteNetworkInterface',
+            ],
+            resources: ['*'], // 네트워크 인터페이스는 특정 리소스가 아니므로 "*"로 설정
+        }));
+        emotionLambdaRole.addToPolicy(new iam.PolicyStatement({
             actions: [
                 'ec2:CreateNetworkInterface',
                 'ec2:DescribeNetworkInterfaces',
@@ -109,8 +135,20 @@ export class WebLayerStack extends cdk.Stack {
                 `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lambda/emoti-lambda:*`
             ],
         }));
+        emotionLambdaRole.addToPolicy(new iam.PolicyStatement({
+            effect: iam.Effect.ALLOW,
+            actions: [
+                'logs:CreateLogGroup',
+                'logs:CreateLogStream',
+                'logs:PutLogEvents'
+            ],
+            resources: [
+                `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lambda/emoti-lambda:*`
+            ],
+        }));
 
-        lambdaRole.addToPolicy(new iam.PolicyStatement({
+
+        emotionLambdaRole.addToPolicy(new iam.PolicyStatement({
             actions: ['sagemaker:InvokeEndpoint'],
             resources: [`arn:aws:sagemaker:${this.region}:${this.account}:endpoint/${bertEndpoint}`], // 대체
         }));
@@ -150,6 +188,29 @@ export class WebLayerStack extends cdk.Stack {
             description: 'Node.js Lambda Layer with native package dependencies',
         });
 
+        // emotion lambda long job function created
+        const emotionLambda = new lambda.Function(this, 'emotion-lambda', {
+            runtime: lambda.Runtime.NODEJS_20_X,
+            handler: 'index.handler', // dist/handler.js의 handler 함수
+            memorySize: 256,
+            architecture: lambda.Architecture.ARM_64,
+            reservedConcurrentExecutions: 2,
+            timeout: Duration.minutes(15),
+            code: lambda.Code.fromAsset(path.join(__dirname, '../../steps/dist')), // 빌드된 코드 위치
+            environment: {
+                DB_SECRETS: secretArn,
+                EMOTION_ENDPOINT: bertEndpoint,
+            },
+            role: emotionLambdaRole,
+            logGroup: logGroup,
+            vpc: importedVpc,
+        });
+
+        lambdaRole.addToPolicy(new iam.PolicyStatement({
+            actions: [ 'lambda:InvokeFunction' ],
+            resources: [ emotionLambda.functionArn ]
+        }))
+
         // Lambda 함수 생성 (예: nuxtLambda)
         const nuxtLambda = new lambda.Function(this, 'emoti-lambda', {
             runtime: lambda.Runtime.NODEJS_20_X,
@@ -164,7 +225,8 @@ export class WebLayerStack extends cdk.Stack {
                 NUXT_AWS_REGION: this.region,
                 NUXT_AWS_RESOURCE_ARN: dbCluster,
                 NUXT_AWS_SECRET_ARN: secretArn,
-                NUXT_BERT_ENDPOINT: bertEndpoint
+                NUXT_EMOTION_REGION: emotionLambda.env.region,
+                NUXT_EMOTION_LAMBDA: emotionLambda.functionName
             },
             role: lambdaRole,
             logGroup: logGroup,

@@ -1,4 +1,4 @@
-import * as schema from '@/server/db/schema'
+import schema from '@/server/db/schema'
 import {count, desc, eq} from "drizzle-orm";
 
 export interface IDiary {
